@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Plus, Sparkles } from 'lucide-react';
+import { Menu, Plus, Compass } from 'lucide-react';
 import type { NavTab } from './Sidebar';
 
 interface HeaderProps {
@@ -19,27 +19,27 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const titles: Record<NavTab, { title: string; subtitle: string }> = {
     dashboard: {
-      title: 'Study Dashboard',
-      subtitle: 'Real-time overview of current stamina, priorities, and study metrics.',
+      title: 'Today & Overview',
+      subtitle: 'Current priorities, stamina status, and upcoming coursework.',
     },
     advisor: {
-      title: 'Study Session Advisor',
-      subtitle: 'Mamdani fuzzy inference for stamina-aware study & break recommendations.',
+      title: 'Study Advisor & Timer',
+      subtitle: 'Mamdani fuzzy inference for stamina-adapted study and break intervals.',
     },
     tasks: {
-      title: 'Coursework Tasks',
-      subtitle: 'Prioritized dynamically using 27 Mamdani fuzzy rules.',
+      title: 'Coursework Priority Manager',
+      subtitle: 'Dynamic priority ranking using 27 Mamdani fuzzy rules.',
     },
     planner: {
       title: 'Smart Daily Planner',
-      subtitle: 'Greedy Best-First Search schedule optimization with break insertion.',
+      subtitle: 'Greedy Best-First Search schedule optimization fitting your exact time budget.',
     },
     history: {
       title: 'Progress & Session History',
-      subtitle: 'Historical analytics, feedback adaptations, and data export.',
+      subtitle: 'Completed study logs, feedback adaptations, and data exports.',
     },
     technical: {
-      title: 'AISC Technical Details',
+      title: 'AISC System Architecture',
       subtitle: 'Formal verification of Computational Intelligence and AI Search methods.',
     },
   };
@@ -47,44 +47,44 @@ export const Header: React.FC<HeaderProps> = ({
   const current = titles[currentTab] || titles.dashboard;
 
   return (
-    <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-10 bg-[#fbfbf9]/90 backdrop-blur-md border-b border-stone-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
         <button
           onClick={onOpenMobileSidebar}
-          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 lg:hidden transition-colors"
-          aria-label="Open sidebar"
+          className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 lg:hidden transition"
+          aria-label="Open navigation menu"
         >
           <Menu className="w-5 h-5" />
         </button>
         <div>
-          <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-tight">
+          <h1 className="text-sm sm:text-base font-semibold text-stone-900 tracking-tight leading-snug">
             {current.title}
-          </h2>
-          <p className="hidden sm:block text-xs text-slate-500 mt-0.5">{current.subtitle}</p>
+          </h1>
+          <p className="hidden sm:block text-xs text-stone-500 mt-0.5">{current.subtitle}</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         {currentTab !== 'advisor' && (
           <button
             onClick={onQuickAdvisor}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100/80 border border-rose-200/80 transition-all shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#fdf2f1] text-[#c93f35] hover:bg-[#fae6e4] border border-[#f8d4d1] transition shadow-2xs"
           >
-            <Sparkles className="w-3.5 h-3.5 text-rose-600" />
-            <span className="hidden sm:inline">Get Advice</span>
+            <Compass className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Get Study Advice</span>
+            <span className="sm:hidden">Advice</span>
           </button>
         )}
 
         {currentTab !== 'tasks' && (
           <button
             onClick={onNewTask}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white transition-all shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-900 hover:bg-stone-800 text-white transition shadow-2xs"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">New Task</span>
-            <span className="sm:hidden">Task</span>
+            <span>New Task</span>
             {taskCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 rounded-full bg-slate-700 text-[10px] font-mono text-slate-200">
+              <span className="ml-1 px-1.5 py-0.2 rounded-full bg-stone-700 text-[10px] font-mono text-stone-200">
                 {taskCount}
               </span>
             )}

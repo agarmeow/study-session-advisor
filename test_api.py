@@ -100,8 +100,43 @@ def test_api_schedule(client):
     assert res.status_code == 200
     data = res.json()
     assert "blocks" in data
+    assert data["available_budget_minutes"] == 120
     assert data["total_planned_time"] <= 120
+    assert data["total_planned_time"] == data["total_study_time"] + data["total_break_time"]
+    assert data["remaining_available_time"] == 120 - data["total_planned_time"]
     assert data["is_feasible"] is True
+
+
+def test_api_schedule_regeneration_different_budgets(client):
+    """Verify schedule recalculates correctly when budget changes from 60 to 240 to 345 minutes."""
+    budgets = [60, 240, 345]
+    prev_study_time = -1
+
+    for b in budgets:
+        payload = {
+            "available_time_minutes": b,
+            "default_break_minutes": 10,
+        }
+        res = client.post("/api/schedule", json=payload)
+        assert res.status_code == 200
+        data = res.json()
+        assert data["available_budget_minutes"] == b
+        assert data["total_planned_time"] == data["total_study_time"] + data["total_break_time"]
+        assert data["remaining_available_time"] == b - data["total_planned_time"]
+        assert data["is_feasible"] is True
+        # As budget increases, scheduled study time should be monotonically non-decreasing
+        assert data["total_study_time"] >= prev_study_time
+        prev_study_time = data["total_study_time"]
+
+
+def test_api_schedule_invalid_input(client):
+    """Verify invalid available time (< 1) is rejected."""
+    payload = {
+        "available_time_minutes": -30,
+        "default_break_minutes": 10,
+    }
+    res = client.post("/api/schedule", json=payload)
+    assert res.status_code == 422 or res.status_code == 400
 
 
 def test_api_session_recording(client):

@@ -6,8 +6,9 @@ import {
   AlertCircle,
   HelpCircle,
   RotateCcw,
+  Play,
+  X,
 } from 'lucide-react';
-import { Card } from '../common/Card';
 import { Badge } from '../common/Badge';
 import type { Task } from '../../types';
 
@@ -23,6 +24,7 @@ interface TasksViewProps {
   }) => Promise<void>;
   onDeleteTask: (index: number) => Promise<void>;
   onResetTasks: () => Promise<void>;
+  onStudyTask?: (taskName: string) => void;
 }
 
 export const TasksView: React.FC<TasksViewProps> = ({
@@ -30,8 +32,9 @@ export const TasksView: React.FC<TasksViewProps> = ({
   onAddTask,
   onDeleteTask,
   onResetTasks,
+  onStudyTask,
 }) => {
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState('');
   const [subject, setSubject] = useState('');
   const [duration, setDuration] = useState(45);
@@ -66,7 +69,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
       setDeadlineDays(2.0);
       setDifficulty(5.0);
       setImportance(7.0);
-      setShowAddForm(false);
+      setShowAddModal(false);
     } catch (err: any) {
       setError(err.message || 'Failed to create task');
     } finally {
@@ -76,72 +79,39 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
   const filteredTasks = tasks.filter((t) => {
     if (filterPriority === 'all') return true;
-    return t.priority_level === filterPriority;
+    return t.priority_level?.includes(filterPriority);
   });
 
-  const highCount = tasks.filter((t) => t.priority_level === 'High Priority').length;
-  const medCount = tasks.filter((t) => t.priority_level === 'Medium Priority').length;
-  const lowCount = tasks.filter((t) => t.priority_level === 'Low Priority').length;
+  const highCount = tasks.filter((t) => t.priority_level?.includes('High')).length;
+  const medCount = tasks.filter((t) => t.priority_level?.includes('Medium')).length;
+  const lowCount = tasks.filter((t) => t.priority_level?.includes('Low')).length;
 
   return (
-    <div className="space-y-6">
-      {/* Priority Summary & Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setFilterPriority('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-              filterPriority === 'all'
-                ? 'bg-slate-900 text-white'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            All Tasks ({tasks.length})
-          </button>
-          <button
-            onClick={() => setFilterPriority('High Priority')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-              filterPriority === 'High Priority'
-                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            High ({highCount})
-          </button>
-          <button
-            onClick={() => setFilterPriority('Medium Priority')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-              filterPriority === 'Medium Priority'
-                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Medium ({medCount})
-          </button>
-          <button
-            onClick={() => setFilterPriority('Low Priority')}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-              filterPriority === 'Low Priority'
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Low ({lowCount})
-          </button>
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* 1. Header & Quick Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900">
+            Coursework Priority Queue
+          </h1>
+          <p className="text-xs sm:text-sm text-stone-500 mt-1">
+            27-rule Mamdani fuzzy system maps urgency, importance, and difficulty to priority scores.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => onResetTasks()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
-            title="Reset to default sample tasks"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100 rounded-lg border border-stone-200 transition"
+            title="Reset to default sample coursework tasks"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Samples</span>
+            <span className="hidden sm:inline">Reset Samples</span>
+            <span className="sm:hidden">Reset</span>
           </button>
           <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors"
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#e0564c] hover:bg-[#cf473d] text-white rounded-lg text-xs font-semibold shadow-xs transition"
           >
             <Plus className="w-4 h-4" />
             <span>Add Coursework Task</span>
@@ -149,199 +119,130 @@ export const TasksView: React.FC<TasksViewProps> = ({
         </div>
       </div>
 
-      {/* Task Creation Form Card */}
-      {showAddForm && (
-        <Card
-          title="Create New Coursework Task"
-          subtitle="All fields are evaluated dynamically by the 27-rule Mamdani fuzzy prioritizer."
-          className="border-rose-200 bg-rose-50/10"
+      {/* 2. Filter Filter Chips Bar */}
+      <div className="flex items-center gap-1.5 bg-stone-100/80 p-1 rounded-lg w-fit border border-stone-200/80">
+        <button
+          onClick={() => setFilterPriority('all')}
+          className={`px-3 py-1 rounded-md text-xs font-medium transition ${
+            filterPriority === 'all'
+              ? 'bg-white text-stone-900 font-semibold shadow-2xs'
+              : 'text-stone-600 hover:text-stone-900'
+          }`}
         >
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Task Title*
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Operating Systems Lab 3: Page Replacement"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Subject / Category
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Computer Science"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500"
-                />
-              </div>
-            </div>
+          All ({tasks.length})
+        </button>
+        <button
+          onClick={() => setFilterPriority('High')}
+          className={`px-3 py-1 rounded-md text-xs font-medium transition ${
+            filterPriority === 'High'
+              ? 'bg-white text-[#c93f35] font-semibold shadow-2xs'
+              : 'text-stone-600 hover:text-stone-900'
+          }`}
+        >
+          High ({highCount})
+        </button>
+        <button
+          onClick={() => setFilterPriority('Medium')}
+          className={`px-3 py-1 rounded-md text-xs font-medium transition ${
+            filterPriority === 'Medium'
+              ? 'bg-white text-amber-800 font-semibold shadow-2xs'
+              : 'text-stone-600 hover:text-stone-900'
+          }`}
+        >
+          Medium ({medCount})
+        </button>
+        <button
+          onClick={() => setFilterPriority('Low')}
+          className={`px-3 py-1 rounded-md text-xs font-medium transition ${
+            filterPriority === 'Low'
+              ? 'bg-white text-emerald-800 font-semibold shadow-2xs'
+              : 'text-stone-600 hover:text-stone-900'
+          }`}
+        >
+          Low ({lowCount})
+        </button>
+      </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Duration (min)*: <span className="text-rose-600 font-bold">{duration}m</span>
-                </label>
-                <input
-                  type="number"
-                  min="10"
-                  max="300"
-                  step="5"
-                  value={duration}
-                  onChange={(e) => setDuration(parseInt(e.target.value) || 10)}
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white text-slate-800"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Days to Deadline*: <span className="text-rose-600 font-bold">{deadlineDays}d</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="90"
-                  step="0.5"
-                  value={deadlineDays}
-                  onChange={(e) => setDeadlineDays(parseFloat(e.target.value) || 0)}
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white text-slate-800"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Difficulty (0–10): <span className="text-slate-800 font-bold">{difficulty}</span>
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  step="0.5"
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(parseFloat(e.target.value))}
-                  className="w-full accent-rose-600 cursor-pointer h-2 bg-slate-200 rounded-lg mt-3"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Importance (0–10): <span className="text-slate-800 font-bold">{importance}</span>
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  step="0.5"
-                  value={importance}
-                  onChange={(e) => setImportance(parseFloat(e.target.value))}
-                  className="w-full accent-rose-600 cursor-pointer h-2 bg-slate-200 rounded-lg mt-3"
-                />
-              </div>
-            </div>
-
-            {error && (
-              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowAddForm(false)}
-                className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors disabled:opacity-50"
-              >
-                {submitting ? 'Evaluating Priority...' : 'Add & Prioritize'}
-              </button>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      {/* Task Cards List */}
+      {/* 3. Task Cards List */}
       <div className="space-y-3">
         {filteredTasks.length > 0 ? (
           filteredTasks.map((task, idx) => {
-            const isHigh = task.priority_level === 'High Priority';
-            const isMed = task.priority_level === 'Medium Priority';
+            const isHigh = task.priority_level?.includes('High');
+            const isMed = task.priority_level?.includes('Medium');
             const isExpanded = expandedReasonIndex === idx;
 
             return (
               <div
                 key={idx}
-                className="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs hover:border-slate-300 transition-all space-y-3"
+                className="bg-white border border-stone-200/90 rounded-xl p-4 sm:p-5 shadow-2xs hover:border-stone-300 transition space-y-3"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-slate-900 tracking-tight">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-xs sm:text-sm text-stone-900">
                         {task.name}
-                      </h4>
-                      <span className="text-xs font-medium text-slate-500">
-                        [{task.subject}]
-                      </span>
+                      </h3>
+                      {task.subject && (
+                        <span className="text-[11px] font-medium text-stone-600 bg-stone-100 px-2 py-0.5 rounded">
+                          {task.subject}
+                        </span>
+                      )}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                      <span>⏱️ <b>{task.estimated_duration} min</b></span>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500 font-mono">
+                      <span>⏱ {task.estimated_duration}m duration</span>
                       <span>•</span>
-                      <span>⏳ <b>{task.deadline_days} days</b> to deadline</span>
+                      <span>Due in {task.deadline_days} days</span>
                       <span>•</span>
-                      <span>📚 Diff: <b>{task.difficulty}/10</b></span>
+                      <span>Diff: {task.difficulty}/10</span>
                       <span>•</span>
-                      <span>⭐ Imp: <b>{task.importance}/10</b></span>
+                      <span>Imp: {task.importance}/10</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 self-start sm:self-center">
-                    <Badge variant={isHigh ? 'coral' : isMed ? 'amber' : 'emerald'}>
-                      {task.priority_level} ({task.priority_score}/100)
+                  <div className="flex items-center gap-2 self-start sm:self-center flex-shrink-0">
+                    <Badge variant={isHigh ? 'coral' : isMed ? 'amber' : 'slate'}>
+                      {task.priority_level} (Score {Math.round(task.priority_score || 0)})
                     </Badge>
+
+                    {onStudyTask && (
+                      <button
+                        onClick={() => onStudyTask(task.name)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-stone-50 hover:bg-[#fdf2f1] hover:text-[#c93f35] text-stone-700 border border-stone-200 transition"
+                        title="Study this task in Advisor"
+                      >
+                        <Play className="w-3 h-3 fill-current" />
+                        <span>Study</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={() => onDeleteTask(idx)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                       title="Delete task"
+                      aria-label={`Delete task ${task.name}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                {/* AI Fuzzy Reason Note */}
-                <div className="pt-2 border-t border-slate-100 flex items-start justify-between gap-3 text-xs">
-                  <div className="text-slate-600 flex items-start gap-1.5">
-                    <HelpCircle className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" />
+                {/* Priority Reason Note */}
+                <div className="pt-2.5 border-t border-stone-100 flex items-start justify-between gap-3 text-xs">
+                  <div className="text-stone-600 flex items-start gap-1.5 leading-relaxed">
+                    <HelpCircle className="w-3.5 h-3.5 text-stone-400 flex-shrink-0 mt-0.5" />
                     <p className={isExpanded ? '' : 'line-clamp-1'}>
-                      <span className="font-semibold text-slate-800">Fuzzy Reason:</span>{' '}
-                      {task.priority_reason || 'Computed by Mamdani rules across urgency and importance.'}
+                      <span className="font-medium text-stone-800">Fuzzy Reason:</span>{' '}
+                      {task.priority_reason || 'Evaluated across deadline urgency and weight.'}
                     </p>
                   </div>
 
-                  {task.priority_reason && task.priority_reason.length > 80 && (
+                  {task.priority_reason && task.priority_reason.length > 70 && (
                     <button
                       onClick={() => setExpandedReasonIndex(isExpanded ? null : idx)}
-                      className="text-2xs font-semibold text-rose-600 hover:text-rose-700 flex-shrink-0"
+                      className="text-[11px] font-medium text-[#c93f35] hover:underline flex-shrink-0"
                     >
-                      {isExpanded ? 'Less' : 'More'}
+                      {isExpanded ? 'Show less' : 'Read more'}
                     </button>
                   )}
                 </div>
@@ -349,15 +250,163 @@ export const TasksView: React.FC<TasksViewProps> = ({
             );
           })
         ) : (
-          <div className="bg-white border border-slate-200 rounded-xl text-center py-12 px-4">
-            <CheckSquare className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <h4 className="font-semibold text-slate-800 text-sm">No tasks matching filter</h4>
-            <p className="text-xs text-slate-500 mt-1">
-              Add a new assignment or clear the priority filter.
+          <div className="bg-white border border-stone-200 rounded-xl text-center py-12 px-4">
+            <CheckSquare className="w-8 h-8 text-stone-300 mx-auto mb-2" />
+            <h4 className="font-semibold text-stone-800 text-xs sm:text-sm">No tasks matching current filter</h4>
+            <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
+              Add coursework tasks to evaluate and schedule your upcoming deadlines.
             </p>
           </div>
         )}
       </div>
+
+      {/* 4. Task Creation Dialog Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
+          <div className="bg-white rounded-xl max-w-lg w-full p-5 sm:p-6 shadow-xl border border-stone-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-[#fdf2f1] text-[#c93f35] flex items-center justify-center">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-bold text-stone-900">Add Coursework Task</h3>
+              </div>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="p-1 rounded text-stone-400 hover:text-stone-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2 space-y-1">
+                  <label htmlFor="modal-task-title" className="block text-xs font-medium text-stone-700">
+                    Task Title*
+                  </label>
+                  <input
+                    id="modal-task-title"
+                    type="text"
+                    placeholder="e.g. Distributed Systems Lab 2"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-stone-200 bg-white text-stone-800 focus:outline-none focus:ring-1 focus:ring-[#e0564c]"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="modal-task-subject" className="block text-xs font-medium text-stone-700">
+                    Subject
+                  </label>
+                  <input
+                    id="modal-task-subject"
+                    type="text"
+                    placeholder="e.g. CS 402"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    className="w-full text-xs p-2 rounded-lg border border-stone-200 bg-white text-stone-800 focus:outline-none focus:ring-1 focus:ring-[#e0564c]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label htmlFor="modal-task-duration" className="block text-xs font-medium text-stone-700">
+                    Duration (minutes)*
+                  </label>
+                  <input
+                    id="modal-task-duration"
+                    type="number"
+                    min="10"
+                    max="300"
+                    step="5"
+                    value={duration}
+                    onChange={(e) => setDuration(parseInt(e.target.value) || 10)}
+                    className="w-full text-xs p-2 rounded-lg border border-stone-200 bg-white text-stone-800 font-mono"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="modal-task-deadline" className="block text-xs font-medium text-stone-700">
+                    Days to Deadline*
+                  </label>
+                  <input
+                    id="modal-task-deadline"
+                    type="number"
+                    min="0"
+                    max="60"
+                    step="0.5"
+                    value={deadlineDays}
+                    onChange={(e) => setDeadlineDays(parseFloat(e.target.value) || 0)}
+                    className="w-full text-xs p-2 rounded-lg border border-stone-200 bg-white text-stone-800 font-mono"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-stone-700">Difficulty (0–10)</span>
+                    <span className="font-mono text-stone-900 font-semibold">{difficulty}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={difficulty}
+                    onChange={(e) => setDifficulty(parseFloat(e.target.value))}
+                    className="w-full accent-[#e0564c] cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-stone-700">Importance (0–10)</span>
+                    <span className="font-mono text-stone-900 font-semibold">{importance}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={importance}
+                    onChange={(e) => setImportance(parseFloat(e.target.value))}
+                    className="w-full accent-[#e0564c] cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-3 py-1.5 text-xs text-stone-500 hover:text-stone-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-1.5 rounded-lg bg-[#e0564c] hover:bg-[#cf473d] text-white text-xs font-semibold shadow-2xs transition disabled:opacity-50"
+                >
+                  {submitting ? 'Prioritizing...' : 'Save & Prioritize'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Sparkles,
+  Clock,
   Play,
   Pause,
   RotateCcw,
   FastForward,
-  CheckCircle2,
   Coffee,
   Info,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import { Card } from '../common/Card';
 import { Badge } from '../common/Badge';
-import { MetricCard } from '../common/MetricCard';
 import type {
   Task,
   RecommendationRequest,
@@ -24,6 +26,7 @@ interface AdvisorViewProps {
   onSessionLogged: () => void;
   activeRecommendation: RecommendationResponse | null;
   setActiveRecommendation: (rec: RecommendationResponse | null) => void;
+  initialTaskName?: string;
 }
 
 export const AdvisorView: React.FC<AdvisorViewProps> = ({
@@ -31,22 +34,31 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
   onSessionLogged,
   activeRecommendation,
   setActiveRecommendation,
+  initialTaskName,
 }) => {
   // Input form state
   const [sleepHours, setSleepHours] = useState<number>(7.0);
   const [energy, setEnergy] = useState<'Drained' | 'Okay' | 'Energized'>('Okay');
   const [deadline, setDeadline] = useState<'Today' | 'Near' | 'Far'>('Near');
   const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Medium');
-  const [selectedTask, setSelectedTask] = useState<string>('General Study Session');
+  const [selectedTask, setSelectedTask] = useState<string>(initialTaskName || 'General Study Session');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [showFiredRules, setShowFiredRules] = useState<boolean>(false);
+
+  // Sync initialTaskName if it changes from outside
+  useEffect(() => {
+    if (initialTaskName) {
+      setSelectedTask(initialTaskName);
+    }
+  }, [initialTaskName]);
 
   // Timer state
   const [timerMode, setTimerMode] = useState<'study' | 'break'>('study');
   const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused' | 'completed'>('idle');
   const [totalSeconds, setTotalSeconds] = useState<number>(25 * 60);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(25 * 60);
-  const [timerTaskName, setTimerTaskName] = useState<string>('General Study Session');
+  const [timerTaskName, setTimerTaskName] = useState<string>(initialTaskName || 'General Study Session');
   const [showFeedbackModal, setShowFeedbackModal] = useState<boolean>(false);
 
   // Feedback form state
@@ -80,14 +92,12 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
 
   const handleTimerComplete = () => {
     if (timerMode === 'study') {
-      // Transition to break
       const breakMinutes = activeRecommendation?.adapted.final_break_minutes || 10;
       setTimerMode('break');
       setTotalSeconds(breakMinutes * 60);
       setRemainingSeconds(breakMinutes * 60);
       setTimerState('paused');
     } else {
-      // Break complete -> prompt feedback
       setTimerState('completed');
       setShowFeedbackModal(true);
     }
@@ -166,29 +176,30 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
     }
   };
 
-  // Timer controls
+  // Timer values
   const mins = Math.floor(remainingSeconds / 60);
   const secs = remainingSeconds % 60;
   const progressPercent = Math.max(0, Math.min(100, Math.round(((totalSeconds - remainingSeconds) / totalSeconds) * 100)));
 
   return (
-    <div className="space-y-6">
-      {/* 10-Second Student Check-in Card */}
+    <div className="space-y-6 max-w-4xl mx-auto">
+      {/* 1. Compact Check-In Form */}
       <Card
-        title="10-Second Student Check-in"
-        subtitle="Provide your current physical stamina and academic context for Mamdani fuzzy evaluation."
-        badge={<Badge variant="coral">81-Rule Fuzzy System</Badge>}
+        padding="md"
+        title="Stamina Check-In & Study Advisor"
+        subtitle="Mamdani fuzzy inference evaluates your physical reserves and topic complexity to recommend an ideal study interval."
       >
-        <form onSubmit={handleGenerateRecommendation} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <form onSubmit={handleGenerateRecommendation} className="space-y-5">
+          {/* Inputs Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Left Column: Physical Stamina */}
             <div className="space-y-4">
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                    Sleep Last Night: <span className="text-rose-600 font-bold">{sleepHours} hours</span>
-                  </label>
-                  <span className="text-2xs text-slate-400">0 to 12 hrs</span>
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="font-medium text-stone-700">Sleep Last Night</span>
+                  <span className="font-semibold text-stone-900 font-mono bg-stone-100 px-2 py-0.5 rounded border border-stone-200">
+                    {sleepHours} hours
+                  </span>
                 </div>
                 <input
                   type="range"
@@ -197,32 +208,38 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
                   step="0.5"
                   value={sleepHours}
                   onChange={(e) => setSleepHours(parseFloat(e.target.value))}
-                  className="w-full accent-rose-600 cursor-pointer h-2 bg-slate-200 rounded-lg appearance-none"
+                  className="w-full accent-[#e0564c] cursor-pointer"
                 />
+                <div className="flex justify-between text-[10px] text-stone-400 font-mono mt-0.5">
+                  <span>0h (Severe deficit)</span>
+                  <span>6h</span>
+                  <span>8h (Restful)</span>
+                  <span>12h</span>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
+                <span className="block text-xs font-medium text-stone-700 mb-1.5">
                   Current Energy Level
-                </label>
+                </span>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'Drained', label: 'Drained', desc: 'Fatigued / low stamina' },
-                    { id: 'Okay', label: 'Okay', desc: 'Steady / normal' },
-                    { id: 'Energized', label: 'Energized', desc: 'Fresh / sharp alert' },
+                    { id: 'Drained', label: 'Drained', sub: 'Low stamina' },
+                    { id: 'Okay', label: 'Okay', sub: 'Moderate' },
+                    { id: 'Energized', label: 'Energized', sub: 'Peak focus' },
                   ].map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => setEnergy(item.id as any)}
-                      className={`p-2.5 text-center rounded-xl border transition-all ${
+                      className={`py-2 px-2.5 text-center rounded-lg border text-xs transition ${
                         energy === item.id
-                          ? 'border-rose-500 bg-rose-50/50 text-rose-900 font-semibold shadow-2xs'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          ? 'border-[#f8d4d1] bg-[#fdf2f1] text-[#c93f35] font-semibold shadow-2xs'
+                          : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                       }`}
                     >
-                      <div className="text-xs font-semibold">{item.label}</div>
-                      <div className="text-3xs text-slate-400 mt-0.5">{item.desc}</div>
+                      <div className="leading-tight">{item.label}</div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">{item.sub}</div>
                     </button>
                   ))}
                 </div>
@@ -232,54 +249,54 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
             {/* Right Column: Academic Context */}
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Nearest Deadline
-                </label>
+                <span className="block text-xs font-medium text-stone-700 mb-1.5">
+                  Nearest Due Date
+                </span>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'Today', label: 'Today', desc: '< 24h urgent' },
-                    { id: 'Near', label: 'In 2–3 Days', desc: 'Upcoming soon' },
-                    { id: 'Far', label: 'In a Week+', desc: 'Relaxed runway' },
+                    { id: 'Today', label: 'Today', sub: '< 24h urgent' },
+                    { id: 'Near', label: '2–3 Days', sub: 'Coming up' },
+                    { id: 'Far', label: '1+ Week', sub: 'Relaxed' },
                   ].map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => setDeadline(item.id as any)}
-                      className={`p-2.5 text-center rounded-xl border transition-all ${
+                      className={`py-2 px-2.5 text-center rounded-lg border text-xs transition ${
                         deadline === item.id
-                          ? 'border-rose-500 bg-rose-50/50 text-rose-900 font-semibold shadow-2xs'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          ? 'border-[#f8d4d1] bg-[#fdf2f1] text-[#c93f35] font-semibold shadow-2xs'
+                          : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                       }`}
                     >
-                      <div className="text-xs font-semibold">{item.label}</div>
-                      <div className="text-3xs text-slate-400 mt-0.5">{item.desc}</div>
+                      <div className="leading-tight">{item.label}</div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">{item.sub}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
+                <span className="block text-xs font-medium text-stone-700 mb-1.5">
                   Topic Difficulty
-                </label>
+                </span>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { id: 'Easy', label: 'Easy', desc: 'Review / familiar' },
-                    { id: 'Medium', label: 'Medium', desc: 'Core coursework' },
-                    { id: 'Hard', label: 'Hard', desc: 'Abstract / complex' },
+                    { id: 'Easy', label: 'Easy', sub: 'Review' },
+                    { id: 'Medium', label: 'Medium', sub: 'Standard' },
+                    { id: 'Hard', label: 'Hard', sub: 'Complex' },
                   ].map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => setDifficulty(item.id as any)}
-                      className={`p-2.5 text-center rounded-xl border transition-all ${
+                      className={`py-2 px-2.5 text-center rounded-lg border text-xs transition ${
                         difficulty === item.id
-                          ? 'border-rose-500 bg-rose-50/50 text-rose-900 font-semibold shadow-2xs'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          ? 'border-[#f8d4d1] bg-[#fdf2f1] text-[#c93f35] font-semibold shadow-2xs'
+                          : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                       }`}
                     >
-                      <div className="text-xs font-semibold">{item.label}</div>
-                      <div className="text-3xs text-slate-400 mt-0.5">{item.desc}</div>
+                      <div className="leading-tight">{item.label}</div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">{item.sub}</div>
                     </button>
                   ))}
                 </div>
@@ -287,21 +304,22 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
             </div>
           </div>
 
-          {/* Task Assignment Dropdown */}
-          <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Task Assignment Dropdown & Primary Action */}
+          <div className="pt-3 border-t border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex-1 max-w-sm">
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Assign to specific task:
+              <label htmlFor="task-select" className="block text-[11px] font-medium text-stone-600 mb-1">
+                Study target (optional):
               </label>
               <select
+                id="task-select"
                 value={selectedTask}
                 onChange={(e) => setSelectedTask(e.target.value)}
-                className="w-full text-xs rounded-lg border border-slate-200 p-2 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                className="w-full text-xs rounded-lg border border-stone-200 p-2 bg-white text-stone-800 focus:outline-none focus:ring-1 focus:ring-[#e0564c]"
               >
                 <option value="General Study Session">General Study Session</option>
                 {tasks.map((t, idx) => (
                   <option key={idx} value={t.name}>
-                    {t.name} ({t.subject})
+                    {t.name} ({t.subject || 'Coursework'})
                   </option>
                 ))}
               </select>
@@ -310,168 +328,186 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-all disabled:opacity-50 self-end sm:self-auto"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#e0564c] hover:bg-[#cf473d] text-white font-semibold text-xs rounded-lg shadow-xs transition disabled:opacity-50 self-end sm:self-auto"
             >
-              <Sparkles className="w-4 h-4" />
-              <span>{loading ? 'Evaluating Fuzzy Rules...' : 'Generate Study Recommendation'}</span>
+              <Sparkles className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>{loading ? 'Evaluating Rules...' : 'Get Study Recommendation'}</span>
             </button>
           </div>
 
           {error && (
-            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
               {error}
             </div>
           )}
         </form>
       </Card>
 
-      {/* Recommendation Results Card */}
+      {/* 2. Structured Recommendation Results */}
       {activeRecommendation && (
-        <div className="border border-rose-200 rounded-2xl bg-white p-6 shadow-xs border-l-4 border-l-rose-500 space-y-5 animate-in fade-in duration-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <Card padding="md">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-4 border-b border-stone-100">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-rose-600">
-                Personalized Recommendation
-              </div>
-              <h3 className="text-base font-bold text-slate-900 mt-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#c93f35] block">
+                Fuzzy Advisory Output
+              </span>
+              <h3 className="text-sm sm:text-base font-bold text-stone-900 mt-0.5 flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-[#c93f35]" />
                 Target: {activeRecommendation.task_name}
               </h3>
             </div>
-            <Badge variant="coral">Mamdani Inference Result</Badge>
-          </div>
-
-          {/* 4 Metric Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <MetricCard
-              label="Study Duration"
-              value={`${activeRecommendation.adapted.final_study_minutes} min`}
-              subtext={
-                activeRecommendation.adapted.final_study_minutes !== activeRecommendation.fuzzy.study_minutes
-                  ? `Base fuzzy: ${activeRecommendation.fuzzy.study_minutes}m`
-                  : 'Pure fuzzy output'
-              }
-            />
-            <MetricCard
-              label="Break Duration"
-              value={`${activeRecommendation.adapted.final_break_minutes} min`}
-              subtext="Scheduled recharge"
-            />
-            <MetricCard
-              label="Recommended Approach"
-              value={activeRecommendation.fuzzy.intensity}
-              subtext={`Intensity: ${activeRecommendation.fuzzy.intensity_score}/10`}
-            />
-            <MetricCard
-              label="Rest Indicator"
-              value={activeRecommendation.fuzzy.rest_needed}
-              subtext={`Rest score: ${activeRecommendation.fuzzy.rest_score}/10`}
-              badge={
-                <Badge
-                  variant={
-                    activeRecommendation.fuzzy.rest_needed === 'High'
-                      ? 'coral'
-                      : activeRecommendation.fuzzy.rest_needed === 'Medium'
-                      ? 'amber'
-                      : 'emerald'
-                  }
-                  size="sm"
-                >
-                  {activeRecommendation.fuzzy.rest_needed}
-                </Badge>
-              }
-            />
-          </div>
-
-          {/* Input-Grounded Explanation Section */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5">
-            <div className="font-semibold text-xs text-slate-900 flex items-center gap-1.5">
-              <Info className="w-3.5 h-3.5 text-rose-600" />
-              <span>Session Rationale & Guidance</span>
+            <div className="flex items-center gap-2">
+              <Badge variant="coral">81-Rule Mamdani Inference</Badge>
             </div>
-            <p className="text-xs text-slate-700 leading-relaxed font-medium">
-              {activeRecommendation.explanation.guidance}
-            </p>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              {activeRecommendation.explanation.stamina_note}
-            </p>
+          </div>
+
+          {/* 4 Clean Metric Blocks */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="bg-stone-50/70 border border-stone-200/80 rounded-lg p-3">
+              <span className="text-[11px] font-medium text-stone-500 block">Recommended Study</span>
+              <div className="text-xl font-bold font-mono text-[#c93f35] mt-1">
+                {activeRecommendation.adapted.final_study_minutes}m
+              </div>
+              <span className="text-[10px] text-stone-400 mt-0.5 block">
+                Base fuzzy: {activeRecommendation.fuzzy.study_minutes}m
+              </span>
+            </div>
+
+            <div className="bg-stone-50/70 border border-stone-200/80 rounded-lg p-3">
+              <span className="text-[11px] font-medium text-stone-500 block">Recommended Break</span>
+              <div className="text-xl font-bold font-mono text-emerald-700 mt-1">
+                {activeRecommendation.adapted.final_break_minutes}m
+              </div>
+              <span className="text-[10px] text-stone-400 mt-0.5 block">Rest recharge interval</span>
+            </div>
+
+            <div className="bg-stone-50/70 border border-stone-200/80 rounded-lg p-3">
+              <span className="text-[11px] font-medium text-stone-500 block">Study Intensity</span>
+              <div className="text-sm font-bold text-stone-900 mt-1 truncate">
+                {activeRecommendation.fuzzy.intensity}
+              </div>
+              <span className="text-[10px] text-stone-400 mt-0.5 block">
+                Score: {activeRecommendation.fuzzy.intensity_score}/10
+              </span>
+            </div>
+
+            <div className="bg-stone-50/70 border border-stone-200/80 rounded-lg p-3">
+              <span className="text-[11px] font-medium text-stone-500 block">Rest Needed</span>
+              <div className="text-sm font-bold text-stone-900 mt-1 truncate">
+                {activeRecommendation.fuzzy.rest_needed}
+              </div>
+              <span className="text-[10px] text-stone-400 mt-0.5 block">
+                Score: {activeRecommendation.fuzzy.rest_score}/10
+              </span>
+            </div>
+          </div>
+
+          {/* Plain-English Explanation Guidance */}
+          <div className="p-3.5 rounded-lg bg-stone-50 border border-stone-200/70 space-y-2 text-xs leading-relaxed text-stone-700">
+            <div className="font-semibold text-stone-900 flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5 text-[#c93f35]" />
+              <span>Guidance & Rationale</span>
+            </div>
+            <p className="font-medium text-stone-800">{activeRecommendation.explanation.guidance}</p>
+            <p className="text-stone-600">{activeRecommendation.explanation.stamina_note}</p>
 
             {activeRecommendation.explanation.context_notes.length > 0 && (
-              <div className="pt-2 border-t border-slate-200/60 space-y-1">
+              <div className="pt-2 border-t border-stone-200/60 space-y-0.5 text-[11px] text-stone-500">
                 {activeRecommendation.explanation.context_notes.map((note, i) => (
-                  <p key={i} className="text-2xs text-slate-600">
-                    • {note}
-                  </p>
+                  <p key={i}>• {note}</p>
                 ))}
               </div>
             )}
-
-            <div className="pt-2 border-t border-slate-200/60 text-3xs text-slate-400">
-              {activeRecommendation.explanation.disclaimer}
-            </div>
           </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <div className="text-2xs text-slate-500">
-              {activeRecommendation.explanation.transparency_notes[0]}
-            </div>
+          {/* Action to Load Into Focus Timer */}
+          <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setShowFiredRules(!showFiredRules)}
+              className="text-xs text-stone-500 hover:text-stone-800 font-medium inline-flex items-center gap-1"
+            >
+              <span>{showFiredRules ? 'Hide Fired Rules' : 'Inspect Fired Rules'}</span>
+              {showFiredRules ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+
             <button
               onClick={loadRecommendationIntoTimer}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#e0564c] hover:bg-[#cf473d] text-white font-semibold text-xs rounded-lg shadow-2xs transition"
             >
               <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Load Into Timer & Begin</span>
+              <span>Load into Timer & Start</span>
             </button>
           </div>
-        </div>
+
+          {/* Expandable Rules Details */}
+          {showFiredRules && activeRecommendation.fuzzy.fired_rules && (
+            <div className="mt-3 p-3 bg-stone-50 rounded-lg border border-stone-200 text-2xs space-y-2 max-h-48 overflow-y-auto font-mono">
+              <span className="font-semibold text-stone-700 block font-sans">
+                Active Mamdani Rules ({activeRecommendation.fuzzy.fired_rules.length} fired):
+              </span>
+              {activeRecommendation.fuzzy.fired_rules.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between py-1 border-b border-stone-200/60 last:border-0">
+                  <span className="text-stone-700">
+                    IF Sleep({item.rule[0]}) AND Energy({item.rule[1]}) AND Urgency({item.rule[2]}) AND Diff({item.rule[3]})
+                  </span>
+                  <span className="text-[#c93f35] font-semibold">μ = {item.strength.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       )}
 
-      {/* Interactive Timer Card */}
-      <Card
-        title="Interactive Study & Break Timer"
-        subtitle="Stay focused during your blocks and recharge during scheduled breaks."
-        badge={
-          <Badge variant={timerMode === 'study' ? 'coral' : 'emerald'}>
-            {timerMode === 'study' ? '📚 Study Block' : '☕ Rest Break'}
+      {/* 3. Focus Countdown Timer */}
+      <Card padding="md">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-[#c93f35]" />
+            <h2 className="text-sm font-semibold text-stone-900">Study & Rest Focus Timer</h2>
+          </div>
+          <Badge variant={timerMode === 'study' ? 'coral' : 'emerald'} size="sm">
+            {timerMode === 'study' ? 'Study Block' : 'Rest Break'}
           </Badge>
-        }
-      >
+        </div>
+
         <div className="max-w-md mx-auto text-center py-4 space-y-4">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            {timerTaskName} • State: <span className="font-bold text-slate-800">{timerState.toUpperCase()}</span>
+          <div className="text-xs font-medium text-stone-500">
+            Target: <strong className="text-stone-800">{timerTaskName}</strong>
           </div>
 
           {/* Big countdown timer */}
-          <div className="tabular-nums text-5xl sm:text-6xl font-extrabold text-slate-900 tracking-tight my-2">
+          <div className="tabular-nums text-6xl font-bold text-stone-900 tracking-tight font-mono my-2">
             {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
           </div>
 
           {/* Visual progress bar */}
-          <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+          <div className="w-full bg-stone-100 rounded-full h-2 overflow-hidden">
             <div
               className={`h-full transition-all duration-300 rounded-full ${
-                timerMode === 'study' ? 'bg-rose-500' : 'bg-emerald-500'
+                timerMode === 'study' ? 'bg-[#e0564c]' : 'bg-emerald-600'
               }`}
               style={{ width: `${progressPercent}%` }}
             />
           </div>
 
           {/* Action buttons */}
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-3">
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
             {timerState === 'running' ? (
               <button
                 onClick={() => setTimerState('paused')}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-800 transition"
               >
-                <Pause className="w-4 h-4" />
+                <Pause className="w-3.5 h-3.5" />
                 <span>Pause</span>
               </button>
             ) : (
               <button
                 onClick={() => setTimerState('running')}
-                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-colors"
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg text-xs font-semibold bg-[#e0564c] hover:bg-[#cf473d] text-white shadow-xs transition"
               >
-                <Play className="w-4 h-4 fill-current" />
-                <span>Start / Resume</span>
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Start Focus</span>
               </button>
             )}
 
@@ -480,7 +516,7 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
                 setTimerState('idle');
                 setRemainingSeconds(totalSeconds);
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-stone-200 text-stone-600 hover:bg-stone-50 transition"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset</span>
@@ -488,11 +524,11 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
 
             <button
               onClick={() => setRemainingSeconds((prev) => Math.max(0, prev - 60))}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-stone-200 text-stone-600 hover:bg-stone-50 transition"
               title="Advance timer by 1 minute"
             >
               <FastForward className="w-3.5 h-3.5" />
-              <span>+1 Min</span>
+              <span>+1m</span>
             </button>
 
             {timerMode === 'study' ? (
@@ -504,7 +540,7 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
                   setRemainingSeconds(breakMinutes * 60);
                   setTimerState('paused');
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 transition"
               >
                 <Coffee className="w-3.5 h-3.5" />
                 <span>To Break</span>
@@ -512,82 +548,92 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
             ) : (
               <button
                 onClick={() => {
-                  setTimerState('completed');
-                  setShowFeedbackModal(true);
+                  const studyMinutes = activeRecommendation?.adapted.final_study_minutes || 25;
+                  setTimerMode('study');
+                  setTotalSeconds(studyMinutes * 60);
+                  setRemainingSeconds(studyMinutes * 60);
+                  setTimerState('paused');
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[#fdf2f1] text-[#c93f35] hover:bg-[#fae6e4] border border-[#f8d4d1] transition"
               >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Finish Session</span>
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Back to Study</span>
               </button>
             )}
           </div>
         </div>
       </Card>
 
-      {/* Post-Session Feedback Modal */}
+      {/* 4. Feedback Dialog Modal (appears upon completion) */}
       {showFeedbackModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 animate-in fade-in duration-150">
-            <h3 className="text-base font-bold text-slate-900 mb-1">
-              🎉 Session Completed!
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Your feedback helps fine-tune future study session durations.
-            </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
+          <div className="bg-white rounded-xl max-w-sm w-full p-5 shadow-xl border border-stone-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div>
+              <h3 className="text-sm font-bold text-stone-900">Session Completed!</h3>
+              <p className="text-xs text-stone-500 mt-0.5">
+                How did this session feel? Your feedback tunes future duration recommendations.
+              </p>
+            </div>
 
             <form onSubmit={handleSaveFeedback} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-2">
-                  How did the study duration feel?
+                <label className="block text-xs font-medium text-stone-700 mb-1.5">
+                  Duration Assessment:
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  {['Too short', 'Just right', 'Too long'].map((choice) => (
+                  {['Too short', 'Just right', 'Too long'].map((opt) => (
                     <button
-                      key={choice}
+                      key={opt}
                       type="button"
-                      onClick={() => setFeedbackChoice(choice)}
-                      className={`p-2.5 text-xs font-medium rounded-xl border text-center transition-all ${
-                        feedbackChoice === choice
-                          ? 'border-rose-500 bg-rose-50 text-rose-700 font-semibold'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      onClick={() => setFeedbackChoice(opt)}
+                      className={`py-2 px-2 text-xs font-medium rounded-lg border text-center transition ${
+                        feedbackChoice === opt
+                          ? 'border-[#f8d4d1] bg-[#fdf2f1] text-[#c93f35] font-semibold'
+                          : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                       }`}
                     >
-                      {choice}
+                      {opt}
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-2">
-                  How is your energy feeling after the break?
+                <label className="block text-xs font-medium text-stone-700 mb-1.5">
+                  Post-Break Energy:
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  {['Better ⚡', 'Unchanged 😐', 'Lower 😴'].map((choice) => (
+                  {['Better ⚡', 'Unchanged', 'Lower 😴'].map((opt) => (
                     <button
-                      key={choice}
+                      key={opt}
                       type="button"
-                      onClick={() => setPostBreakEnergy(choice)}
-                      className={`p-2.5 text-xs font-medium rounded-xl border text-center transition-all ${
-                        postBreakEnergy === choice
-                          ? 'border-rose-500 bg-rose-50 text-rose-700 font-semibold'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      onClick={() => setPostBreakEnergy(opt)}
+                      className={`py-2 px-2 text-xs font-medium rounded-lg border text-center transition ${
+                        postBreakEnergy === opt
+                          ? 'border-[#f8d4d1] bg-[#fdf2f1] text-[#c93f35] font-semibold'
+                          : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                       }`}
                     >
-                      {choice}
+                      {opt}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setShowFeedbackModal(false)}
+                  className="px-3 py-1.5 text-xs text-stone-500 hover:text-stone-800"
+                >
+                  Skip
+                </button>
                 <button
                   type="submit"
                   disabled={submittingFeedback}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-2xs transition-colors disabled:opacity-50"
+                  className="px-4 py-1.5 rounded-lg bg-[#e0564c] hover:bg-[#cf473d] text-white text-xs font-semibold shadow-2xs transition"
                 >
-                  {submittingFeedback ? 'Saving...' : 'Save Feedback & Update Routine'}
+                  {submittingFeedback ? 'Saving...' : 'Save & Adapt'}
                 </button>
               </div>
             </form>

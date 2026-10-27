@@ -1,14 +1,11 @@
 import React, { useMemo } from 'react';
 import {
-  History,
-  Clock,
-  Coffee,
-  Activity,
-  Award,
   FileSpreadsheet,
   FileCode,
   TrendingUp,
   Smile,
+  Play,
+  Clock,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -21,15 +18,15 @@ import {
 } from 'recharts';
 import { Card } from '../common/Card';
 import { Badge } from '../common/Badge';
-import { MetricCard } from '../common/MetricCard';
 import type { UserData } from '../../types';
 import { api } from '../../services/api';
 
 interface HistoryViewProps {
   userData: UserData | null;
+  onStartStudy?: () => void;
 }
 
-export const HistoryView: React.FC<HistoryViewProps> = ({ userData }) => {
+export const HistoryView: React.FC<HistoryViewProps> = ({ userData, onStartStudy }) => {
   const sessions = useMemo(() => {
     return userData?.sessions || [];
   }, [userData]);
@@ -44,14 +41,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userData }) => {
 
   const totalHours = (totalStudyMinutes / 60).toFixed(1);
 
-  // Prepare chart data (reverse or sort chronological)
+  // Prepare chart data only when >= 2 sessions exist
   const chartData = useMemo(() => {
     return sessions.map((s, idx) => ({
       index: idx + 1,
-      name: s.task_name ? (s.task_name.length > 14 ? s.task_name.slice(0, 14) + '…' : s.task_name) : `Session ${idx + 1}`,
+      name: s.task_name ? (s.task_name.length > 16 ? s.task_name.slice(0, 16) + '…' : s.task_name) : `S${idx + 1}`,
       study: s.study_minutes || 0,
       break: s.break_minutes || 0,
-      date: s.date || s.timestamp?.split('T')[0] || `S${idx + 1}`
+      date: s.date || s.timestamp?.split('T')[0] || `S${idx + 1}`,
     }));
   }, [sessions]);
 
@@ -59,20 +56,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userData }) => {
   const lastFeedback = userData?.last_feedback || 'None';
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* 1. Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-coral-50 text-coral-600 border border-coral-100">
-              <History className="w-5 h-5" />
-            </span>
-            <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
-              Session History & Adaptation Analytics
-            </h1>
-          </div>
-          <p className="text-sm text-neutral-500 mt-1">
-            Review completed study sessions, feedback loops, and how fuzzy recommendations adapt over time.
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900">
+            Progress & Session History
+          </h1>
+          <p className="text-xs sm:text-sm text-stone-500 mt-1">
+            Review completed study sessions, feedback adaptation records, and export your personal data.
           </p>
         </div>
 
@@ -80,108 +72,114 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userData }) => {
         <div className="flex items-center gap-2">
           <a
             href={api.getExportJsonUrl()}
-            download="study_data.json"
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white text-neutral-700 font-medium text-xs border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300 transition shadow-2xs"
+            download="study_intelligence_data.json"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-stone-700 font-medium text-xs border border-stone-200 hover:bg-stone-50 transition shadow-2xs"
           >
-            <FileCode className="w-4 h-4 text-neutral-500" />
-            Export JSON
+            <FileCode className="w-3.5 h-3.5 text-stone-500" />
+            <span>Export JSON</span>
           </a>
           <a
             href={api.getExportCsvUrl()}
             download="study_sessions.csv"
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-coral-600 text-white font-medium text-xs hover:bg-coral-700 transition shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#e0564c] hover:bg-[#cf473d] text-white font-medium text-xs transition shadow-2xs"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            Export CSV
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Export CSV</span>
           </a>
         </div>
       </div>
 
-      {/* Top Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <MetricCard
-          title="Total Study Time"
-          value={`${totalStudyMinutes}m`}
-          subtitle={`${totalHours} hours accumulated`}
-          icon={<Clock className="w-5 h-5 text-coral-600" />}
-        />
-        <MetricCard
-          title="Sessions Completed"
-          value={sessions.length.toString()}
-          subtitle="Study intervals logged"
-          icon={<Award className="w-5 h-5 text-emerald-600" />}
-        />
-        <MetricCard
-          title="Rest Restored"
-          value={`${totalBreakMinutes}m`}
-          subtitle="Recovery breaks logged"
-          icon={<Coffee className="w-5 h-5 text-blue-600" />}
-        />
-        <MetricCard
-          title="Adaptive Offset"
-          value={`${adaptationOffset > 0 ? `+${adaptationOffset}` : adaptationOffset}m`}
-          subtitle={`Last feedback: ${lastFeedback}`}
-          icon={<Activity className="w-5 h-5 text-purple-600" />}
-          badge={
-            <Badge variant={adaptationOffset === 0 ? 'neutral' : adaptationOffset > 0 ? 'success' : 'warning'}>
-              Feedback loop active
-            </Badge>
-          }
-        />
+      {/* 2. Top Summary Metric Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white border border-stone-200/80 rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[11px] font-medium text-stone-500 block">Total Focus Time</span>
+          <div className="flex items-baseline gap-1 mt-1">
+            <span className="text-xl font-bold font-mono text-stone-900">{totalStudyMinutes}m</span>
+            <span className="text-[11px] text-stone-400">({totalHours}h)</span>
+          </div>
+          <span className="text-[10px] text-stone-400 mt-0.5 block">Logged focus minutes</span>
+        </div>
+
+        <div className="bg-white border border-stone-200/80 rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[11px] font-medium text-stone-500 block">Sessions Completed</span>
+          <div className="flex items-baseline gap-1 mt-1">
+            <span className="text-xl font-bold font-mono text-stone-900">{sessions.length}</span>
+            <span className="text-[11px] text-stone-400">sessions</span>
+          </div>
+          <span className="text-[10px] text-stone-400 mt-0.5 block">Study intervals finished</span>
+        </div>
+
+        <div className="bg-white border border-stone-200/80 rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[11px] font-medium text-stone-500 block">Rest Restored</span>
+          <div className="flex items-baseline gap-1 mt-1">
+            <span className="text-xl font-bold font-mono text-emerald-700">{totalBreakMinutes}m</span>
+          </div>
+          <span className="text-[10px] text-stone-400 mt-0.5 block">Recovery buffers taken</span>
+        </div>
+
+        <div className="bg-white border border-stone-200/80 rounded-xl p-3.5 shadow-2xs">
+          <span className="text-[11px] font-medium text-stone-500 block">Adaptive Offset</span>
+          <div className="flex items-baseline gap-1 mt-1">
+            <span className={`text-xl font-bold font-mono ${adaptationOffset !== 0 ? 'text-[#c93f35]' : 'text-stone-700'}`}>
+              {adaptationOffset > 0 ? `+${adaptationOffset}` : adaptationOffset}m
+            </span>
+          </div>
+          <span className="text-[10px] text-stone-400 mt-0.5 block truncate">Last: {lastFeedback}</span>
+        </div>
       </div>
 
-      {/* Study Volume Trends Chart */}
-      {sessions.length > 0 ? (
-        <Card orientation="vertical" padding="lg">
+      {/* 3. Study Trends Chart (Only when >= 2 sessions recorded) */}
+      {sessions.length >= 2 ? (
+        <Card padding="md">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-base font-semibold text-neutral-900 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-coral-600" />
-                Study Session Progression
+              <h2 className="text-sm font-semibold text-stone-900 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-[#c93f35]" />
+                Study Duration Progression
               </h2>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                Duration (minutes) across recorded study sessions.
+              <p className="text-[11px] text-stone-500 mt-0.5">
+                Logged session minutes across recent study intervals.
               </p>
             </div>
-            <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5 text-neutral-600">
-                <span className="w-3 h-3 rounded-xs bg-coral-500 inline-block" />
-                Study Minutes
+            <div className="flex items-center gap-3 text-xs">
+              <span className="flex items-center gap-1 text-stone-600">
+                <span className="w-2.5 h-2.5 rounded-xs bg-[#e0564c] inline-block" />
+                Study (mins)
               </span>
-              <span className="flex items-center gap-1.5 text-neutral-600">
-                <span className="w-3 h-3 rounded-xs bg-emerald-400 inline-block" />
-                Break Minutes
+              <span className="flex items-center gap-1 text-stone-600">
+                <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500 inline-block" />
+                Break (mins)
               </span>
             </div>
           </div>
 
-          <div className="h-64 w-full">
+          <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="studyColor" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#e0564c" stopOpacity={0.4} />
+                  <linearGradient id="studyGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#e0564c" stopOpacity={0.25} />
                     <stop offset="95%" stopColor="#e0564c" stopOpacity={0.0} />
                   </linearGradient>
-                  <linearGradient id="breakColor" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                  <linearGradient id="breakGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#737373' }} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#737373' }} tickLine={false} axisLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0ee" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#78716c' }} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#78716c' }} tickLine={false} axisLine={false} />
                 <Tooltip
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       const data = payload[0].payload;
                       return (
-                        <div className="bg-white p-3 rounded-xl shadow-lg border border-neutral-100 text-xs space-y-1">
-                          <p className="font-semibold text-neutral-800">{data.name}</p>
-                          <p className="text-neutral-500">{data.date}</p>
-                          <div className="pt-1 space-y-0.5 border-t border-neutral-100">
-                            <p className="text-coral-600 font-medium">Study: {data.study} mins</p>
-                            <p className="text-emerald-600 font-medium">Break: {data.break} mins</p>
+                        <div className="bg-white p-2.5 rounded-lg shadow-md border border-stone-200 text-xs space-y-1">
+                          <p className="font-semibold text-stone-800">{data.name}</p>
+                          <p className="text-stone-400 text-[10px]">{data.date}</p>
+                          <div className="pt-1 space-y-0.5 border-t border-stone-100 font-mono">
+                            <p className="text-[#c93f35]">Study: {data.study}m</p>
+                            <p className="text-emerald-700">Break: {data.break}m</p>
                           </div>
                         </div>
                       );
@@ -195,7 +193,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userData }) => {
                   stroke="#e0564c"
                   strokeWidth={2}
                   fillOpacity={1}
-                  fill="url(#studyColor)"
+                  fill="url(#studyGrad)"
                 />
                 <Area
                   type="monotone"
@@ -203,96 +201,104 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ userData }) => {
                   stroke="#10b981"
                   strokeWidth={1.5}
                   fillOpacity={1}
-                  fill="url(#breakColor)"
+                  fill="url(#breakGrad)"
                 />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
-      ) : (
-        <Card orientation="vertical" padding="lg">
-          <div className="py-12 text-center text-neutral-500">
-            <Clock className="w-12 h-12 mx-auto text-neutral-300 mb-3" />
-            <h3 className="text-base font-semibold text-neutral-800">No Study Sessions Logged Yet</h3>
-            <p className="text-xs text-neutral-400 max-w-md mx-auto mt-1">
-              Start a study session timer in the Advisor view or complete a scheduled task in the Planner to build your intelligence history.
-            </p>
-          </div>
-        </Card>
-      )}
+      ) : null}
 
-      {/* Detailed Log Table */}
-      {sessions.length > 0 && (
-        <Card orientation="vertical" padding="none">
-          <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-neutral-900">
-              Session Log Records ({sessions.length})
-            </h3>
-            <span className="text-xs text-neutral-400">Chronological history</span>
+      {/* 4. Detailed History Table */}
+      {sessions.length > 0 ? (
+        <Card padding="none">
+          <div className="p-4 border-b border-stone-100 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-stone-900">
+              Completed Session Logs ({sessions.length})
+            </h2>
+            <span className="text-2xs text-stone-400">Chronological list</span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-500 font-medium">
+              <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-medium">
                 <tr>
-                  <th className="py-3 px-4">#</th>
-                  <th className="py-3 px-4">Task Name</th>
-                  <th className="py-3 px-4">Date & Time</th>
-                  <th className="py-3 px-4">Study Mins</th>
-                  <th className="py-3 px-4">Break Mins</th>
-                  <th className="py-3 px-4">User Feedback</th>
-                  <th className="py-3 px-4">Post-Break Energy</th>
+                  <th className="py-2.5 px-4 font-mono">#</th>
+                  <th className="py-2.5 px-4">Coursework Task</th>
+                  <th className="py-2.5 px-4">Date & Time</th>
+                  <th className="py-2.5 px-4">Study</th>
+                  <th className="py-2.5 px-4">Break</th>
+                  <th className="py-2.5 px-4">Student Feedback</th>
+                  <th className="py-2.5 px-4">Post-Break Energy</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 text-neutral-700">
+              <tbody className="divide-y divide-stone-100 text-stone-700 font-mono text-[11px]">
                 {sessions.map((session, idx) => (
-                  <tr key={idx} className="hover:bg-neutral-50/70 transition">
-                    <td className="py-3 px-4 font-mono text-neutral-400">{idx + 1}</td>
-                    <td className="py-3 px-4 font-semibold text-neutral-900">
+                  <tr key={idx} className="hover:bg-stone-50/60 transition">
+                    <td className="py-2.5 px-4 text-stone-400">{idx + 1}</td>
+                    <td className="py-2.5 px-4 font-sans font-semibold text-stone-900">
                       {session.task_name || 'General Study Session'}
                     </td>
-                    <td className="py-3 px-4 text-neutral-500">
+                    <td className="py-2.5 px-4 text-stone-500">
                       {session.date || (session.timestamp ? session.timestamp.replace('T', ' ').slice(0, 16) : '—')}
                     </td>
-                    <td className="py-3 px-4 font-mono font-medium text-coral-600">
+                    <td className="py-2.5 px-4 font-semibold text-[#c93f35]">
                       {session.study_minutes}m
                     </td>
-                    <td className="py-3 px-4 font-mono font-medium text-emerald-600">
+                    <td className="py-2.5 px-4 font-semibold text-emerald-700">
                       {session.break_minutes}m
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-2.5 px-4 font-sans">
                       {session.feedback ? (
                         <Badge
                           variant={
                             session.feedback === 'Just right'
-                              ? 'success'
+                              ? 'emerald'
                               : session.feedback === 'Too long'
-                              ? 'warning'
-                              : session.feedback === 'Too short'
-                              ? 'info'
-                              : 'neutral'
+                              ? 'amber'
+                              : 'blue'
                           }
+                          size="sm"
                         >
                           {session.feedback}
                         </Badge>
                       ) : (
-                        <span className="text-neutral-400">—</span>
+                        <span className="text-stone-400">—</span>
                       )}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-2.5 px-4 font-sans">
                       {session.post_break_energy ? (
-                        <span className="inline-flex items-center gap-1 text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded text-[11px]">
-                          <Smile className="w-3 h-3 text-neutral-400" />
-                          {session.post_break_energy}
+                        <span className="inline-flex items-center gap-1 text-stone-600 bg-stone-100 px-2 py-0.5 rounded text-[10px]">
+                          <Smile className="w-3 h-3 text-stone-400" />
+                          <span>{session.post_break_energy}</span>
                         </span>
                       ) : (
-                        <span className="text-neutral-400">—</span>
+                        <span className="text-stone-400">—</span>
                       )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </Card>
+      ) : (
+        <Card padding="lg">
+          <div className="py-12 text-center text-stone-500">
+            <Clock className="w-10 h-10 mx-auto text-stone-300 mb-2" />
+            <h3 className="text-sm font-semibold text-stone-800">No Study Sessions Logged Yet</h3>
+            <p className="text-xs text-stone-400 max-w-sm mx-auto mt-1">
+              Start a focus timer in the Study Advisor or complete a scheduled task in the Planner to log your first session.
+            </p>
+            {onStartStudy && (
+              <button
+                onClick={onStartStudy}
+                className="mt-4 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#e0564c] hover:bg-[#cf473d] text-white rounded-lg text-xs font-semibold shadow-2xs transition"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Start First Study Session</span>
+              </button>
+            )}
           </div>
         </Card>
       )}

@@ -23,6 +23,8 @@ export function App() {
   const [activeRecommendation, setActiveRecommendation] = useState<RecommendationResponse | null>(null);
   const [isPreferencesOpen, setIsPreferencesOpen] = useState<boolean>(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [preselectedTask, setPreselectedTask] = useState<string | undefined>(undefined);
 
   // Fetch all initial data
   const loadData = useCallback(async () => {
@@ -82,6 +84,7 @@ export function App() {
 
   // Quick navigation handlers
   const handleQuickAdvisor = () => {
+    setPreselectedTask(undefined);
     setCurrentTab('advisor');
   };
 
@@ -89,23 +92,29 @@ export function App() {
     setCurrentTab('tasks');
   };
 
-  const handleStartStudyFromPlanner = (_taskName: string, _durationMinutes: number) => {
+  const handleStartTaskInAdvisor = (taskName: string) => {
+    setPreselectedTask(taskName);
     setCurrentTab('advisor');
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex">
+    <div className="min-h-screen bg-[#fbfbf9] text-stone-800 flex flex-col lg:flex-row antialiased selection:bg-[#f8d4d1] selection:text-[#9e2b23]">
       {/* Sidebar navigation */}
       <Sidebar
         currentTab={currentTab}
-        onSelectTab={setCurrentTab}
+        onSelectTab={(tab) => {
+          setCurrentTab(tab);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
         onOpenPreferences={() => setIsPreferencesOpen(true)}
         adaptationOffset={userData?.adaptation_offset ?? 0}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
       />
 
-      {/* Main Content Area */}
+      {/* Main Content Area: fills all remaining desktop width without any overlap */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
         {/* Sticky Header */}
         <Header
@@ -118,11 +127,12 @@ export function App() {
 
         {/* Global Error Banner if backend fails */}
         {error && (
-          <div className="mx-4 sm:mx-8 mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-center justify-between gap-3 shadow-2xs">
+          <div className="mx-4 sm:mx-8 mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs sm:text-sm flex items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
               <span>
-                <strong>Backend Notice:</strong> {error}. Ensure FastAPI is running on <code className="bg-amber-100 px-1 py-0.5 rounded text-xs font-mono">http://127.0.0.1:8000</code>.
+                <strong>Backend Notice:</strong> {error}. Ensure FastAPI is running on{' '}
+                <code className="bg-amber-100 px-1 py-0.5 rounded text-xs font-mono">http://127.0.0.1:8000</code>.
               </span>
             </div>
             <button
@@ -139,11 +149,11 @@ export function App() {
         )}
 
         {/* Dynamic View Body */}
-        <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-6xl w-full mx-auto">
           {loading && !userData ? (
-            <div className="py-24 flex flex-col items-center justify-center space-y-3 text-slate-400">
-              <div className="w-8 h-8 rounded-full border-2 border-rose-500 border-t-transparent animate-spin" />
-              <p className="text-xs font-medium">Initializing Fuzzy Study Intelligence Engine...</p>
+            <div className="py-24 flex flex-col items-center justify-center space-y-3 text-stone-400">
+              <div className="w-7 h-7 rounded-full border-2 border-[#e0564c] border-t-transparent animate-spin" />
+              <p className="text-xs font-medium text-stone-500">Initializing Study Intelligence System...</p>
             </div>
           ) : (
             <>
@@ -159,6 +169,7 @@ export function App() {
                   }
                   onNavigate={setCurrentTab}
                   onNewTask={handleNewTask}
+                  onStartTask={handleStartTaskInAdvisor}
                 />
               )}
 
@@ -168,6 +179,7 @@ export function App() {
                   onSessionLogged={loadData}
                   activeRecommendation={activeRecommendation}
                   setActiveRecommendation={setActiveRecommendation}
+                  initialTaskName={preselectedTask}
                 />
               )}
 
@@ -177,18 +189,23 @@ export function App() {
                   onAddTask={handleAddTask}
                   onDeleteTask={handleDeleteTask}
                   onResetTasks={handleResetTasks}
+                  onStudyTask={handleStartTaskInAdvisor}
                 />
               )}
 
               {currentTab === 'planner' && (
                 <PlannerView
                   tasks={tasks}
-                  onStartStudy={handleStartStudyFromPlanner}
+                  onStartStudy={handleStartTaskInAdvisor}
+                  onNavigateToTechnical={() => setCurrentTab('technical')}
                 />
               )}
 
               {currentTab === 'history' && (
-                <HistoryView userData={userData} />
+                <HistoryView
+                  userData={userData}
+                  onStartStudy={() => setCurrentTab('advisor')}
+                />
               )}
 
               {currentTab === 'technical' && (
