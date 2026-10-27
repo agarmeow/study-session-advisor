@@ -11,6 +11,11 @@ import {
   ChevronUp,
   Sparkles,
   BookOpen,
+  CheckCircle2,
+  AlertCircle,
+  Sliders,
+  ThumbsUp,
+  Plus,
 } from 'lucide-react';
 import { Card } from '../common/Card';
 import { Badge } from '../common/Badge';
@@ -18,6 +23,7 @@ import type {
   Task,
   RecommendationRequest,
   RecommendationResponse,
+  SessionRecord,
 } from '../../types';
 import { api } from '../../services/api';
 
@@ -27,6 +33,8 @@ interface AdvisorViewProps {
   activeRecommendation: RecommendationResponse | null;
   setActiveRecommendation: (rec: RecommendationResponse | null) => void;
   initialTaskName?: string;
+  adaptationOffset?: number;
+  lastFeedback?: string | null;
 }
 
 export const AdvisorView: React.FC<AdvisorViewProps> = ({
@@ -35,6 +43,8 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
   activeRecommendation,
   setActiveRecommendation,
   initialTaskName,
+  adaptationOffset = 0,
+  lastFeedback,
 }) => {
   // Input form state
   const [sleepHours, setSleepHours] = useState<number>(7.0);
@@ -53,18 +63,30 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
     }
   }, [initialTaskName]);
 
-  // Timer state
+  // Timer configuration & tracking state
   const [timerMode, setTimerMode] = useState<'study' | 'break'>('study');
-  const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused' | 'completed'>('idle');
+  const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused' | 'finished' | 'feedback_submitted'>('idle');
+  const [plannedStudyMinutes, setPlannedStudyMinutes] = useState<number>(25);
+  const [plannedBreakMinutes, setPlannedBreakMinutes] = useState<number>(10);
   const [totalSeconds, setTotalSeconds] = useState<number>(25 * 60);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(25 * 60);
+  const [elapsedStudySeconds, setElapsedStudySeconds] = useState<number>(0);
+  const [elapsedBreakSeconds, setElapsedBreakSeconds] = useState<number>(0);
   const [timerTaskName, setTimerTaskName] = useState<string>(initialTaskName || 'General Study Session');
-  const [showFeedbackModal, setShowFeedbackModal] = useState<boolean>(false);
 
-  // Feedback form state
-  const [feedbackChoice, setFeedbackChoice] = useState<string>('Just right');
+  // Completion & Feedback state
+  const [isSavingSession, setIsSavingSession] = useState<boolean>(false);
+  const [sessionSaveError, setSessionSaveError] = useState<string | null>(null);
+  const [completedSession, setCompletedSession] = useState<SessionRecord | null>(null);
   const [postBreakEnergy, setPostBreakEnergy] = useState<string>('Better ⚡');
-  const [submittingFeedback, setSubmittingFeedback] = useState<boolean>(false);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<boolean>(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackStatus, setFeedbackStatus] = useState<{
+    submitted: boolean;
+    choice?: string;
+    newOffset?: number;
+    message?: string;
+  } | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -74,35 +96,53 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
       timerRef.current = setInterval(() => {
         setRemainingSeconds((prev) => {
           if (prev <= 1) {
-            if (timerRef.current) clearInterval(timerRef.current);
-            handleTimerComplete();
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+            }
+            handleCountdownZero();
             return 0;
           }
           return prev - 1;
         });
+
+        if (timerMode === 'study') {
+          setElapsedStudySeconds((prev) => prev + 1);
+        } else {
+          setElapsedBreakSeconds((prev) => prev + 1);
+        }
       }, 1000);
     } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
   }, [timerState, timerMode]);
 
-  const handleTimerComplete = () => {
+  // When timer naturally reaches zero
+  const handleCountdownZero = () => {
     if (timerMode === 'study') {
-      const breakMinutes = activeRecommendation?.adapted.final_break_minutes || 10;
+      // Study interval completed! Switch to scheduled break
+      const breakMins = plannedBreakMinutes;
       setTimerMode('break');
-      setTotalSeconds(breakMinutes * 60);
-      setRemainingSeconds(breakMinutes * 60);
+      setTotalSeconds(breakMins * 60);
+      setRemainingSeconds(breakMins * 60);
       setTimerState('paused');
     } else {
-      setTimerState('completed');
-      setShowFeedbackModal(true);
+      // Break countdown completed! Automatically finish session
+      handleFinishSession();
     }
   };
 
+  // Generate Fuzzy Recommendation
   const handleGenerateRecommendation = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -126,13 +166,21 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
     try {
       const res = await api.getRecommendation(req);
       setActiveRecommendation(res);
-      // Pre-load duration into timer
       const studyMins = res.adapted.final_study_minutes;
+      const breakMins = res.adapted.final_break_minutes;
+
+      setPlannedStudyMinutes(studyMins);
+      setPlannedBreakMinutes(breakMins);
       setTotalSeconds(studyMins * 60);
       setRemainingSeconds(studyMins * 60);
+      setElapsedStudySeconds(0);
+      setElapsedBreakSeconds(0);
       setTimerMode('study');
       setTimerState('idle');
       setTimerTaskName(selectedTask);
+      setCompletedSession(null);
+      setFeedbackStatus(null);
+      setSessionSaveError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to compute recommendation');
     } finally {
@@ -140,50 +188,198 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
     }
   };
 
+  // Load into Timer and start
   const loadRecommendationIntoTimer = () => {
     if (!activeRecommendation) return;
     const studyMins = activeRecommendation.adapted.final_study_minutes;
+    const breakMins = activeRecommendation.adapted.final_break_minutes;
+    setPlannedStudyMinutes(studyMins);
+    setPlannedBreakMinutes(breakMins);
     setTotalSeconds(studyMins * 60);
     setRemainingSeconds(studyMins * 60);
+    setElapsedStudySeconds(0);
+    setElapsedBreakSeconds(0);
     setTimerMode('study');
     setTimerState('running');
     setTimerTaskName(activeRecommendation.task_name || 'General Study Session');
+    setCompletedSession(null);
+    setFeedbackStatus(null);
+    setSessionSaveError(null);
   };
 
-  const handleSaveFeedback = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmittingFeedback(true);
+  // 1. Finish Session Action (running or paused, early or completed)
+  const handleFinishSession = async () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    setIsSavingSession(true);
+    setSessionSaveError(null);
+
+    // Calculate actual study minutes
+    let actualStudyMins = Math.round(elapsedStudySeconds / 60);
+    if (timerMode === 'study' && remainingSeconds === 0) {
+      actualStudyMins = plannedStudyMinutes;
+    }
+    actualStudyMins = Math.max(1, actualStudyMins);
+
+    let actualBreakMins = Math.round(elapsedBreakSeconds / 60);
+    if (timerMode === 'break' && remainingSeconds === 0) {
+      actualBreakMins = plannedBreakMinutes;
+    }
+
+    const completionTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
     try {
-      const studyMins = activeRecommendation?.adapted.final_study_minutes || 25;
-      const breakMins = activeRecommendation?.adapted.final_break_minutes || 10;
-      await api.recordSession({
+      const res = await api.recordSession({
         task_name: timerTaskName,
-        study_minutes: studyMins,
-        break_minutes: breakMins,
-        feedback: feedbackChoice,
-        post_break_energy: postBreakEnergy,
+        study_minutes: actualStudyMins,
+        planned_study_minutes: plannedStudyMinutes,
+        actual_study_minutes: actualStudyMins,
+        break_minutes: actualBreakMins,
+        completion_time: completionTimeStr,
       });
-      setShowFeedbackModal(false);
-      setTimerState('idle');
-      setTimerMode('study');
-      setTotalSeconds(25 * 60);
-      setRemainingSeconds(25 * 60);
-      onSessionLogged();
+
+      setCompletedSession(res.session);
+      setTimerState('finished');
+      setFeedbackStatus(null);
+      onSessionLogged(); // Refreshes application history & metrics
     } catch (err: any) {
-      alert(`Error recording session: ${err.message}`);
+      setSessionSaveError(err.message || 'Failed to record session on backend. Please retry.');
     } finally {
-      setSubmittingFeedback(false);
+      setIsSavingSession(false);
     }
   };
 
-  // Timer values
+  // 2. Adaptive Feedback Submission
+  const handleSubmitFeedback = async (choice: 'Too Short' | 'Just Right' | 'Too Long') => {
+    if (!completedSession) return;
+    setIsSubmittingFeedback(true);
+    setFeedbackError(null);
+
+    try {
+      const res = await api.submitFeedback({
+        session_id: completedSession.id,
+        feedback: choice,
+        post_break_energy: postBreakEnergy,
+      });
+
+      setFeedbackStatus({
+        submitted: true,
+        choice,
+        newOffset: res.new_adaptation_offset,
+        message: res.message,
+      });
+      setTimerState('feedback_submitted');
+      onSessionLogged(); // Updates adaptive offset across the whole application
+    } catch (err: any) {
+      setFeedbackError(err.message || 'Failed to submit feedback.');
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
+  // 3. Reset Timer Action (Does NOT record any session)
+  const handleResetTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setTimerState('idle');
+    setTimerMode('study');
+    setTotalSeconds(plannedStudyMinutes * 60);
+    setRemainingSeconds(plannedStudyMinutes * 60);
+    setElapsedStudySeconds(0);
+    setElapsedBreakSeconds(0);
+    setSessionSaveError(null);
+    setCompletedSession(null);
+    setFeedbackStatus(null);
+  };
+
+  // +1 minute manual advance
+  const handleAdvanceOneMinute = () => {
+    setRemainingSeconds((prev) => {
+      const next = Math.max(0, prev - 60);
+      if (next === 0 && prev > 0) {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        handleCountdownZero();
+      }
+      return next;
+    });
+
+    if (timerMode === 'study') {
+      setElapsedStudySeconds((prev) => prev + 60);
+    } else {
+      setElapsedBreakSeconds((prev) => prev + 60);
+    }
+  };
+
+  // Switch to Break mode
+  const handleSwitchToBreak = () => {
+    setTimerMode('break');
+    setTotalSeconds(plannedBreakMinutes * 60);
+    setRemainingSeconds(plannedBreakMinutes * 60);
+    setTimerState('paused');
+  };
+
+  // Switch back to Study mode
+  const handleSwitchBackToStudy = () => {
+    setTimerMode('study');
+    setTotalSeconds(plannedStudyMinutes * 60);
+    const remainingStudy = Math.max(60, (plannedStudyMinutes * 60) - elapsedStudySeconds);
+    setRemainingSeconds(remainingStudy);
+    setTimerState('paused');
+  };
+
+  const handleStartNewSession = () => {
+    handleResetTimer();
+  };
+
+  // Timer display calculation
   const mins = Math.floor(remainingSeconds / 60);
   const secs = remainingSeconds % 60;
   const progressPercent = Math.max(0, Math.min(100, Math.round(((totalSeconds - remainingSeconds) / totalSeconds) * 100)));
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      {/* 1. Compact Check-In Form */}
+      {/* Top Status Strip: Visible Adaptive Feedback Tuning Offset */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-white border border-stone-200/90 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-stone-100 flex items-center justify-center text-stone-600">
+            <Sliders className="w-3.5 h-3.5 text-[#e0564c]" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-stone-900">Current Adaptive Offset:</span>
+              <span
+                className={`font-mono font-bold text-xs px-2 py-0.5 rounded border ${
+                  adaptationOffset > 0
+                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                    : adaptationOffset < 0
+                    ? 'bg-blue-50 text-blue-800 border-blue-200'
+                    : 'bg-stone-50 text-stone-700 border-stone-200'
+                }`}
+              >
+                {adaptationOffset > 0 ? `+${adaptationOffset}` : adaptationOffset}m
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-400">
+              {lastFeedback
+                ? `Most recent session rated "${lastFeedback}". Offset bounded between -15m and +15m.`
+                : 'Offset fine-tunes future recommendations automatically based on your session feedback.'}
+            </p>
+          </div>
+        </div>
+        <Badge variant={adaptationOffset !== 0 ? 'coral' : 'neutral'} size="sm">
+          {adaptationOffset !== 0 ? 'Feedback Tuning Active' : 'Neutral Offset (0m)'}
+        </Badge>
+      </div>
+
+      {/* 1. Compact Stamina Check-In Form */}
       <Card
         padding="md"
         title="Stamina Check-In & Study Advisor"
@@ -459,21 +655,51 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
         </Card>
       )}
 
-      {/* 3. Focus Countdown Timer */}
+      {/* 3. Focus Countdown Timer & Active Session Controls */}
       <Card padding="md">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-[#c93f35]" />
             <h2 className="text-sm font-semibold text-stone-900">Study & Rest Focus Timer</h2>
           </div>
-          <Badge variant={timerMode === 'study' ? 'coral' : 'emerald'} size="sm">
-            {timerMode === 'study' ? 'Study Block' : 'Rest Break'}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={timerMode === 'study' ? 'coral' : 'emerald'} size="sm">
+              {timerMode === 'study' ? 'Study Block' : 'Rest Break'}
+            </Badge>
+            <Badge variant="neutral" size="sm">
+              {timerState === 'running'
+                ? 'Running'
+                : timerState === 'paused'
+                ? 'Paused'
+                : timerState === 'finished'
+                ? 'Finished'
+                : timerState === 'feedback_submitted'
+                ? 'Logged'
+                : 'Not Started'}
+            </Badge>
+          </div>
         </div>
+
+        {/* Backend Error Banner if recording fails */}
+        {sessionSaveError && (
+          <div className="my-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+              <span>{sessionSaveError}</span>
+            </div>
+            <button
+              onClick={handleFinishSession}
+              disabled={isSavingSession}
+              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-semibold"
+            >
+              {isSavingSession ? 'Retrying...' : 'Retry Finish'}
+            </button>
+          </div>
+        )}
 
         <div className="max-w-md mx-auto text-center py-4 space-y-4">
           <div className="text-xs font-medium text-stone-500">
-            Target: <strong className="text-stone-800">{timerTaskName}</strong>
+            Target Coursework: <strong className="text-stone-800">{timerTaskName}</strong>
           </div>
 
           {/* Big countdown timer */}
@@ -491,70 +717,91 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
             />
           </div>
 
-          {/* Action buttons */}
+          {/* Mode description hint */}
+          <p className="text-[11px] text-stone-400">
+            {timerMode === 'study'
+              ? `Planned study block: ${plannedStudyMinutes}m • Elapsed study: ${Math.floor(elapsedStudySeconds / 60)}m ${elapsedStudySeconds % 60}s`
+              : `Planned break block: ${plannedBreakMinutes}m • Elapsed break: ${Math.floor(elapsedBreakSeconds / 60)}m ${elapsedBreakSeconds % 60}s`}
+          </p>
+
+          {/* Primary Action Buttons Bar */}
           <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+            {/* Start / Pause / Resume Controls */}
             {timerState === 'running' ? (
               <button
                 onClick={() => setTimerState('paused')}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-800 transition"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-800 transition shadow-2xs"
               >
                 <Pause className="w-3.5 h-3.5" />
                 <span>Pause</span>
               </button>
+            ) : timerState === 'paused' ? (
+              <button
+                onClick={() => setTimerState('running')}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-[#e0564c] hover:bg-[#cf473d] text-white shadow-2xs transition"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Resume</span>
+              </button>
             ) : (
               <button
                 onClick={() => setTimerState('running')}
-                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg text-xs font-semibold bg-[#e0564c] hover:bg-[#cf473d] text-white shadow-xs transition"
+                disabled={timerState === 'finished'}
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg text-xs font-semibold bg-[#e0564c] hover:bg-[#cf473d] text-white shadow-xs transition disabled:opacity-50"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Start Focus</span>
+                <span>{timerMode === 'study' ? 'Start Focus' : 'Start Break'}</span>
               </button>
             )}
 
+            {/* Finish Session Button: Visible when session is running or paused */}
+            {(timerState === 'running' || timerState === 'paused') && (
+              <button
+                onClick={handleFinishSession}
+                disabled={isSavingSession}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition"
+                title="Finish and record this study session immediately"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{isSavingSession ? 'Recording...' : 'Finish Session'}</span>
+              </button>
+            )}
+
+            {/* Reset Button (Does NOT mark session completed) */}
             <button
-              onClick={() => {
-                setTimerState('idle');
-                setRemainingSeconds(totalSeconds);
-              }}
+              onClick={handleResetTimer}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-stone-200 text-stone-600 hover:bg-stone-50 transition"
+              title="Reset countdown without recording a completed session"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset</span>
             </button>
 
+            {/* +1m Fast Forward */}
             <button
-              onClick={() => setRemainingSeconds((prev) => Math.max(0, prev - 60))}
+              onClick={handleAdvanceOneMinute}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-stone-200 text-stone-600 hover:bg-stone-50 transition"
-              title="Advance timer by 1 minute"
+              title="Advance timer countdown by 1 minute"
             >
               <FastForward className="w-3.5 h-3.5" />
               <span>+1m</span>
             </button>
 
+            {/* Mode switch: To Break / Back to Study */}
             {timerMode === 'study' ? (
               <button
-                onClick={() => {
-                  const breakMinutes = activeRecommendation?.adapted.final_break_minutes || 10;
-                  setTimerMode('break');
-                  setTotalSeconds(breakMinutes * 60);
-                  setRemainingSeconds(breakMinutes * 60);
-                  setTimerState('paused');
-                }}
+                onClick={handleSwitchToBreak}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 transition"
+                title="Switch to recovery break interval"
               >
                 <Coffee className="w-3.5 h-3.5" />
                 <span>To Break</span>
               </button>
             ) : (
               <button
-                onClick={() => {
-                  const studyMinutes = activeRecommendation?.adapted.final_study_minutes || 25;
-                  setTimerMode('study');
-                  setTotalSeconds(studyMinutes * 60);
-                  setRemainingSeconds(studyMinutes * 60);
-                  setTimerState('paused');
-                }}
+                onClick={handleSwitchBackToStudy}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-[#fdf2f1] text-[#c93f35] hover:bg-[#fae6e4] border border-[#f8d4d1] transition"
+                title="Return to study mode"
               >
                 <BookOpen className="w-3.5 h-3.5" />
                 <span>Back to Study</span>
@@ -562,84 +809,204 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
             )}
           </div>
         </div>
-      </Card>
 
-      {/* 4. Feedback Dialog Modal (appears upon completion) */}
-      {showFeedbackModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-xl max-w-sm w-full p-5 shadow-xl border border-stone-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div>
-              <h3 className="text-sm font-bold text-stone-900">Session Completed!</h3>
-              <p className="text-xs text-stone-500 mt-0.5">
-                How did this session feel? Your feedback tunes future duration recommendations.
-              </p>
+        {/* 4. Session Summary & Adaptive Feedback Section (Appears after finishing) */}
+        {(timerState === 'finished' || timerState === 'feedback_submitted') && completedSession && (
+          <div className="mt-5 pt-5 border-t border-stone-200 space-y-4 text-left">
+            {/* Session Summary Card */}
+            <div className="bg-stone-50/80 border border-stone-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span className="text-xs font-bold text-stone-900">Study Session Completed & Logged</span>
+                </div>
+                <Badge variant="emerald" size="sm">
+                  1 History Entry Saved
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+                <div className="bg-white p-2.5 rounded-lg border border-stone-200/70">
+                  <span className="text-[10px] text-stone-400 block font-medium">Task</span>
+                  <strong className="text-stone-900 text-xs block truncate mt-0.5">
+                    {completedSession.task_name}
+                  </strong>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-lg border border-stone-200/70">
+                  <span className="text-[10px] text-stone-400 block font-medium">Actual Focus</span>
+                  <strong className="text-[#c93f35] text-xs block font-mono mt-0.5">
+                    {completedSession.actual_study_minutes ?? completedSession.study_minutes}m{' '}
+                    <span className="text-[10px] font-normal text-stone-400">
+                      (plan: {completedSession.planned_study_minutes ?? plannedStudyMinutes}m)
+                    </span>
+                  </strong>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-lg border border-stone-200/70">
+                  <span className="text-[10px] text-stone-400 block font-medium">Break Recorded</span>
+                  <strong className="text-emerald-700 text-xs block font-mono mt-0.5">
+                    {completedSession.break_minutes}m
+                  </strong>
+                </div>
+
+                <div className="bg-white p-2.5 rounded-lg border border-stone-200/70">
+                  <span className="text-[10px] text-stone-400 block font-medium">Completion Time</span>
+                  <strong className="text-stone-700 text-xs block font-mono mt-0.5">
+                    {completedSession.completion_time || completedSession.timestamp}
+                  </strong>
+                </div>
+              </div>
             </div>
 
-            <form onSubmit={handleSaveFeedback} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-stone-700 mb-1.5">
-                  Duration Assessment:
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['Too short', 'Just right', 'Too long'].map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setFeedbackChoice(opt)}
-                      className={`py-2 px-2 text-xs font-medium rounded-lg border text-center transition ${
-                        feedbackChoice === opt
-                          ? 'border-[#f8d4d1] bg-[#fdf2f1] text-[#c93f35] font-semibold'
-                          : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
+            {/* Adaptive Feedback Submission Controls */}
+            <div className="bg-white border border-stone-200/90 rounded-xl p-4 space-y-3 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <div>
+                  <h4 className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                    <ThumbsUp className="w-3.5 h-3.5 text-[#e0564c]" />
+                    <span>How did this study session duration feel?</span>
+                  </h4>
+                  <p className="text-[11px] text-stone-500 mt-0.5">
+                    Your assessment tunes the cumulative adaptation offset (±5m per session, bounded within ±15m).
+                  </p>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-stone-700 mb-1.5">
-                  Post-Break Energy:
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['Better ⚡', 'Unchanged', 'Lower 😴'].map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setPostBreakEnergy(opt)}
-                      className={`py-2 px-2 text-xs font-medium rounded-lg border text-center transition ${
-                        postBreakEnergy === opt
-                          ? 'border-[#f8d4d1] bg-[#fdf2f1] text-[#c93f35] font-semibold'
-                          : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
+              {/* Feedback Error Notice if submission failed */}
+              {feedbackError && (
+                <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+                  {feedbackError}
                 </div>
-              </div>
+              )}
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+              {/* Success Banner if Feedback Submitted */}
+              {feedbackStatus?.submitted ? (
+                <div className="p-3.5 rounded-lg bg-emerald-50 border border-emerald-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span className="text-xs font-bold text-emerald-950">
+                        Adaptive Feedback Saved!
+                      </span>
+                    </div>
+                    <Badge variant="emerald" size="sm">
+                      Rated: {feedbackStatus.choice}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-emerald-800 leading-relaxed">
+                    Adaptive tuning offset is now{' '}
+                    <strong className="font-mono">
+                      {feedbackStatus.newOffset !== undefined && feedbackStatus.newOffset > 0
+                        ? `+${feedbackStatus.newOffset}`
+                        : feedbackStatus.newOffset}
+                      m
+                    </strong>
+                    . Subsequent study recommendations will automatically incorporate this adjustment.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 pt-1">
+                  {/* Three Clear Adaptive Feedback Options */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <button
+                      type="button"
+                      disabled={isSubmittingFeedback}
+                      onClick={() => handleSubmitFeedback('Too Short')}
+                      className="p-3 text-left rounded-lg border border-stone-200 hover:border-amber-300 hover:bg-amber-50/50 bg-white transition group cursor-pointer disabled:opacity-50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-stone-900 group-hover:text-amber-900">
+                          Too Short
+                        </span>
+                        <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                          +5m
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-stone-500 mt-1 leading-normal">
+                        I still had stamina and wanted to continue studying.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSubmittingFeedback}
+                      onClick={() => handleSubmitFeedback('Just Right')}
+                      className="p-3 text-left rounded-lg border border-stone-200 hover:border-emerald-300 hover:bg-emerald-50/50 bg-white transition group cursor-pointer disabled:opacity-50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-stone-900 group-hover:text-emerald-900">
+                          Just Right
+                        </span>
+                        <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                          ±0m
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-stone-500 mt-1 leading-normal">
+                        The interval felt optimal and productive.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSubmittingFeedback}
+                      onClick={() => handleSubmitFeedback('Too Long')}
+                      className="p-3 text-left rounded-lg border border-stone-200 hover:border-blue-300 hover:bg-blue-50/50 bg-white transition group cursor-pointer disabled:opacity-50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-stone-900 group-hover:text-blue-900">
+                          Too Long
+                        </span>
+                        <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800">
+                          -5m
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-stone-500 mt-1 leading-normal">
+                        I started losing focus or felt fatigued before the end.
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* Post-Break Energy Assessment */}
+                  <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <span className="text-[11px] font-medium text-stone-600">
+                      How do you feel after the session?
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {['Better ⚡', 'Unchanged', 'Lower 😴'].map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => setPostBreakEnergy(opt)}
+                          className={`px-2.5 py-1 rounded text-xs transition ${
+                            postBreakEnergy === opt
+                              ? 'bg-stone-900 text-white font-semibold'
+                              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Start Next Session / Clean Reset Button */}
+              <div className="pt-3 border-t border-stone-100 flex items-center justify-end">
                 <button
                   type="button"
-                  onClick={() => setShowFeedbackModal(false)}
-                  className="px-3 py-1.5 text-xs text-stone-500 hover:text-stone-800"
+                  onClick={handleStartNewSession}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-stone-900 hover:bg-black text-white text-xs font-semibold shadow-2xs transition"
                 >
-                  Skip
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingFeedback}
-                  className="px-4 py-1.5 rounded-lg bg-[#e0564c] hover:bg-[#cf473d] text-white text-xs font-semibold shadow-2xs transition"
-                >
-                  {submittingFeedback ? 'Saving...' : 'Save & Adapt'}
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Start New Focus Session</span>
                 </button>
               </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Card>
     </div>
   );
 };

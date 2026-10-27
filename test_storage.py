@@ -8,6 +8,8 @@ from storage import (
     save_user_data,
     apply_adaptation_and_preferences,
     record_session,
+    update_session_feedback,
+    normalize_feedback,
     export_history_json,
     export_sessions_csv,
     get_default_data,
@@ -138,4 +140,77 @@ def test_generate_recommendation_explanation_feedback_and_imminent_deadline():
     transparency_text = " ".join(exp["transparency_notes"])
     assert "+5 min across past study sessions" in transparency_text
     assert "most recent response: 'Too short'" in transparency_text
+
+
+def test_record_session_fields_and_exact_single_entry():
+    data = get_default_data()
+    initial_count = len(data["sessions"])
+
+    entry = record_session(
+        data=data,
+        task_name="OS Architecture",
+        study_minutes=25,
+        break_minutes=5,
+        planned_study_minutes=30,
+        actual_study_minutes=25,
+        completion_time="2026-10-28 02:00:00",
+        filepath=None,
+    )
+
+    # Must create exactly one new session entry
+    assert len(data["sessions"]) == initial_count + 1
+    assert entry["task_name"] == "OS Architecture"
+    assert entry["study_minutes"] == 25
+    assert entry["planned_study_minutes"] == 30
+    assert entry["actual_study_minutes"] == 25
+    assert entry["break_minutes"] == 5
+    assert entry["completion_time"] == "2026-10-28 02:00:00"
+    assert "id" in entry
+    assert entry["feedback"] is None
+
+
+def test_update_session_feedback_and_duplicate_prevention():
+    data = get_default_data()
+    entry = record_session(
+        data=data,
+        task_name="Algorithm Analysis",
+        study_minutes=45,
+        break_minutes=10,
+        filepath=None,
+    )
+    assert data["adaptation_offset"] == 0
+
+    # First feedback submission: "Too Short" should add +5 min
+    sess, updated = update_session_feedback(
+        data=data,
+        session_id=entry["id"],
+        feedback="Too Short",
+        post_break_energy="Better",
+        filepath=None,
+    )
+    assert updated is True
+    assert sess["feedback"] == "Too short"
+    assert data["adaptation_offset"] == 5
+    assert data["last_feedback"] == "Too short"
+
+    # Second submission on the SAME session: must prevent duplicate adaptation offset
+    sess2, updated2 = update_session_feedback(
+        data=data,
+        session_id=entry["id"],
+        feedback="Too Short",
+        filepath=None,
+    )
+    assert updated2 is False
+    # Offset must remain 5, NOT 10
+    assert data["adaptation_offset"] == 5
+
+
+def test_feedback_normalization():
+    assert normalize_feedback("Too Short") == "Too short"
+    assert normalize_feedback("too short") == "Too short"
+    assert normalize_feedback("Just Right") == "Just right"
+    assert normalize_feedback("just right") == "Just right"
+    assert normalize_feedback("Too Long") == "Too long"
+    assert normalize_feedback("TOO LONG") == "Too long"
+
 

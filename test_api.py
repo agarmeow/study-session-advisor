@@ -178,3 +178,67 @@ def test_api_technical_endpoints(client):
     assert heatmaps_res.status_code == 200
     assert "coverage" in heatmaps_res.json()
     assert "durations" in heatmaps_res.json()
+
+
+def test_api_session_completion_and_feedback_flow(client):
+    """Test full finish session, feedback adaptation, and duplicate prevention flow."""
+    # 1. Finish session early without feedback
+    session_payload = {
+        "task_name": "Compiler Design",
+        "study_minutes": 20,
+        "planned_study_minutes": 25,
+        "actual_study_minutes": 20,
+        "break_minutes": 5,
+        "completion_time": "02:00 AM",
+    }
+    rec_res = client.post("/api/sessions", json=session_payload)
+    assert rec_res.status_code == 200
+    sess_data = rec_res.json()
+    created_sess = sess_data["session"]
+    sess_id = created_sess["id"]
+    initial_offset = sess_data["new_adaptation_offset"]
+
+    assert created_sess["task_name"] == "Compiler Design"
+    assert created_sess["study_minutes"] == 20
+    assert created_sess["planned_study_minutes"] == 25
+    assert created_sess["actual_study_minutes"] == 20
+    assert created_sess["break_minutes"] == 5
+    assert created_sess["completion_time"] == "02:00 AM"
+    assert created_sess["feedback"] is None
+
+    # 2. Submit "Too Short" feedback
+    fb_payload = {
+        "session_id": sess_id,
+        "feedback": "Too Short",
+        "post_break_energy": "Better",
+    }
+    fb_res = client.post("/api/feedback", json=fb_payload)
+    assert fb_res.status_code == 200
+    fb_data = fb_res.json()
+    assert fb_data["already_submitted"] is False
+    assert fb_data["session"]["feedback"] == "Too short"
+    expected_new_offset = min(15, initial_offset + 5)
+    assert fb_data["new_adaptation_offset"] == expected_new_offset
+    assert fb_data["last_feedback"] == "Too short"
+
+    # 3. Duplicate submission attempt on same session must be blocked
+    fb_res_dup = client.post(f"/api/sessions/{sess_id}/feedback", json=fb_payload)
+    assert fb_res_dup.status_code == 200
+    dup_data = fb_res_dup.json()
+    assert dup_data["already_submitted"] is True
+    # Offset must not increment again
+    assert dup_data["new_adaptation_offset"] == expected_new_offset
+
+    # 4. Verify subsequent study recommendation incorporates updated offset
+    rec_req = {
+        "sleep_hours": 7.0,
+        "energy": 5.0,
+        "days_to_deadline": 2.0,
+        "difficulty": 5.0,
+        "task_name": "Next Subject",
+    }
+    rec_resp = client.post("/api/recommendation", json=rec_req)
+    assert rec_resp.status_code == 200
+    rec_json = rec_resp.json()
+    assert rec_json["adapted"]["adaptation_offset"] == expected_new_offset
+

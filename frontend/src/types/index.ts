@@ -17,10 +17,14 @@ export interface UserPreferences {
 }
 
 export interface SessionRecord {
+  id?: string;
   timestamp: string;
   date: string;
+  completion_time?: string;
   task_name: string;
   study_minutes: number;
+  planned_study_minutes?: number;
+  actual_study_minutes?: number;
   break_minutes: number;
   feedback?: string | null;
   post_break_energy?: string | null;

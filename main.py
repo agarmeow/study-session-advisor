@@ -36,6 +36,7 @@ from storage import (
     load_user_data,
     record_session,
     save_user_data,
+    update_session_feedback,
 )
 from task_prioritizer import (
     TASK_RULES,
@@ -99,8 +100,17 @@ class ScheduleRequest(BaseModel):
 class SessionRecordRequest(BaseModel):
     task_name: str = "General Study Session"
     study_minutes: int = Field(..., gt=0)
-    break_minutes: int = Field(..., ge=0)
+    break_minutes: int = Field(0, ge=0)
     feedback: Optional[str] = None
+    post_break_energy: Optional[str] = None
+    planned_study_minutes: Optional[int] = None
+    actual_study_minutes: Optional[int] = None
+    completion_time: Optional[str] = None
+
+
+class FeedbackSubmitRequest(BaseModel):
+    session_id: Optional[str] = None
+    feedback: str = Field(..., description="Too Short, Just Right, or Too Long")
     post_break_energy: Optional[str] = None
 
 
@@ -413,6 +423,9 @@ def record_completed_session(req: SessionRecordRequest) -> Dict[str, Any]:
             break_minutes=req.break_minutes,
             feedback=req.feedback,
             post_break_energy=req.post_break_energy,
+            planned_study_minutes=req.planned_study_minutes,
+            actual_study_minutes=req.actual_study_minutes,
+            completion_time=req.completion_time,
         )
         return {
             "session": session_entry,
@@ -421,6 +434,35 @@ def record_completed_session(req: SessionRecordRequest) -> Dict[str, Any]:
         }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@app.post("/api/feedback")
+@app.post("/api/sessions/{session_id}/feedback")
+def submit_session_feedback(
+    req: FeedbackSubmitRequest,
+    session_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Submit adaptive feedback for a completed session, updating bounded adaptation offset."""
+    try:
+        data = load_user_data()
+        target_id = session_id or req.session_id
+        session_entry, was_updated = update_session_feedback(
+            data=data,
+            session_id=target_id,
+            feedback=req.feedback,
+            post_break_energy=req.post_break_energy,
+        )
+        return {
+            "message": "Feedback recorded successfully." if was_updated else "Feedback already recorded for this session.",
+            "session": session_entry,
+            "new_adaptation_offset": data.get("adaptation_offset", 0),
+            "last_feedback": data.get("last_feedback"),
+            "already_submitted": not was_updated,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @app.put("/api/preferences")

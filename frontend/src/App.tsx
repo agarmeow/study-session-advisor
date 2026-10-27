@@ -180,6 +180,8 @@ export function App() {
                   activeRecommendation={activeRecommendation}
                   setActiveRecommendation={setActiveRecommendation}
                   initialTaskName={preselectedTask}
+                  adaptationOffset={userData?.adaptation_offset ?? 0}
+                  lastFeedback={userData?.last_feedback}
                 />
               )}
 

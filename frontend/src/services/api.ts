@@ -88,10 +88,29 @@ export const api = {
     break_minutes: number;
     feedback?: string;
     post_break_energy?: string;
+    planned_study_minutes?: number;
+    actual_study_minutes?: number;
+    completion_time?: string;
   }) =>
     fetchJson<{ session: any; new_adaptation_offset: number; last_feedback?: string }>('/api/sessions', {
       method: 'POST',
       body: JSON.stringify(session),
+    }),
+
+  submitFeedback: (payload: {
+    session_id?: string;
+    feedback: string;
+    post_break_energy?: string;
+  }) =>
+    fetchJson<{
+      message: string;
+      session: any;
+      new_adaptation_offset: number;
+      last_feedback?: string;
+      already_submitted: boolean;
+    }>('/api/feedback', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
 
   updatePreferences: (prefs: Partial<UserPreferences>) =>

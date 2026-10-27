@@ -273,6 +273,20 @@ def generate_recommendation_explanation(
     }
 
 
+def normalize_feedback(fb: Optional[str]) -> Optional[str]:
+    """Normalize feedback string to canonical 'Too short', 'Just right', or 'Too long'."""
+    if not fb:
+        return None
+    cleaned = str(fb).strip().lower()
+    if cleaned in {"too short", "too_short", "tooshort"}:
+        return "Too short"
+    if cleaned in {"too long", "too_long", "toolong"}:
+        return "Too long"
+    if cleaned in {"just right", "just_right", "justright"}:
+        return "Just right"
+    return fb.strip()
+
+
 def record_session(
     data: Dict[str, Any],
     task_name: str,
@@ -281,35 +295,100 @@ def record_session(
     feedback: Optional[str] = None,
     post_break_energy: Optional[str] = None,
     filepath: Optional[str] = "study_data.json",
+    session_id: Optional[str] = None,
+    planned_study_minutes: Optional[int] = None,
+    actual_study_minutes: Optional[int] = None,
+    completion_time: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Record a completed study/break session and update feedback adaptation."""
+    now = datetime.now()
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+    date_str = now.strftime("%Y-%m-%d")
+
+    norm_feedback = normalize_feedback(feedback)
+    actual_study = actual_study_minutes if actual_study_minutes is not None else study_minutes
+    planned_study = planned_study_minutes if planned_study_minutes is not None else study_minutes
+    sid = session_id or f"sess_{int(now.timestamp() * 1000)}"
+
     session_entry = {
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "date": datetime.now().strftime("%Y-%m-%d"),
+        "id": sid,
+        "timestamp": now_str,
+        "date": date_str,
+        "completion_time": completion_time or now_str,
         "task_name": task_name,
-        "study_minutes": study_minutes,
+        "study_minutes": actual_study,
+        "planned_study_minutes": planned_study,
+        "actual_study_minutes": actual_study,
         "break_minutes": break_minutes,
-        "feedback": feedback,
+        "feedback": norm_feedback,
         "post_break_energy": post_break_energy,
     }
-    data["sessions"].append(session_entry)
+    data.setdefault("sessions", []).append(session_entry)
 
     # Update feedback adaptation if provided
-    if feedback in {"Too short", "Too long", "Just right"}:
-        data["last_feedback"] = feedback
-
-    if feedback == "Too short":
-        # Increment by 5 minutes up to max +15
-        data["adaptation_offset"] = min(15, data.get("adaptation_offset", 0) + 5)
-    elif feedback == "Too long":
-        # Decrement by 5 minutes down to min -15
-        data["adaptation_offset"] = max(-15, data.get("adaptation_offset", 0) - 5)
-    # If "Just right", offset stays unchanged
+    if norm_feedback in {"Too short", "Too long", "Just right"}:
+        data["last_feedback"] = norm_feedback
+        if norm_feedback == "Too short":
+            data["adaptation_offset"] = min(15, data.get("adaptation_offset", 0) + 5)
+        elif norm_feedback == "Too long":
+            data["adaptation_offset"] = max(-15, data.get("adaptation_offset", 0) - 5)
 
     if filepath:
         save_user_data(data, filepath)
 
     return session_entry
+
+
+def update_session_feedback(
+    data: Dict[str, Any],
+    session_id: Optional[str] = None,
+    feedback: str = "Just right",
+    post_break_energy: Optional[str] = None,
+    filepath: Optional[str] = "study_data.json",
+    allow_duplicate: bool = False,
+) -> Tuple[Dict[str, Any], bool]:
+    """Attach or update feedback for a recorded session and apply bounded adaptation.
+    
+    Returns (session_entry, was_updated).
+    If allow_duplicate is False and session already has feedback, returns (session_entry, False)
+    without applying the offset adjustment again.
+    """
+    sessions = data.get("sessions", [])
+    if not sessions:
+        raise ValueError("No study sessions found to attach feedback to.")
+
+    target_session = None
+    if session_id:
+        for s in reversed(sessions):
+            if s.get("id") == session_id or s.get("timestamp") == session_id:
+                target_session = s
+                break
+    
+    if target_session is None:
+        target_session = sessions[-1]
+
+    norm_feedback = normalize_feedback(feedback)
+    if not norm_feedback or norm_feedback not in {"Too short", "Too long", "Just right"}:
+        raise ValueError(f"Invalid feedback: '{feedback}'. Must be 'Too Short', 'Just Right', or 'Too Long'.")
+
+    # Prevent duplicate submission if feedback already exists for this session
+    if target_session.get("feedback") is not None and not allow_duplicate:
+        return target_session, False
+
+    target_session["feedback"] = norm_feedback
+    if post_break_energy:
+        target_session["post_break_energy"] = post_break_energy
+
+    data["last_feedback"] = norm_feedback
+    if norm_feedback == "Too short":
+        data["adaptation_offset"] = min(15, data.get("adaptation_offset", 0) + 5)
+    elif norm_feedback == "Too long":
+        data["adaptation_offset"] = max(-15, data.get("adaptation_offset", 0) - 5)
+
+    if filepath:
+        save_user_data(data, filepath)
+
+    return target_session, True
 
 
 def export_history_json(data: Dict[str, Any]) -> str:
