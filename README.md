@@ -4,53 +4,11 @@ An AI Search and Computational Intelligence (AISC) companion designed for colleg
 
 Upgraded from the original **Study Session Advisor**, this system combines **Mamdani Fuzzy Inference Systems** for stamina-aware session recommendations and task prioritization with **Greedy Best-First Search (GBFS)** for feasible daily schedule optimization.
 
----
-
-## 🌟 Key Features
-
-1. **Stamina-Aware Study & Break Advisor (Mamdani Fuzzy Logic)**
-   - 10-second check-in collecting Sleep Hours (0–12h), Energy (Drained, Okay, Energized), Deadline Urgency, and Topic Difficulty.
-   - Evaluates a complete 81-rule Mamdani base using triangular and trapezoidal membership functions and discrete centroid defuzzification.
-   - Outputs recommended study duration, break duration, study approach (*Light revision*, *Moderate study*, or *Challenging material*), and a planning rest-needed indicator (*Low*, *Medium*, *High*).
-   - Generates contextual, student-friendly explanations based on inference results.
-
-2. **Interactive Session Timer**
-   - Seamless countdown timer with study and break state transitions.
-   - Start, pause, resume, reset, and skip/advance controls.
-   - Persists state across Streamlit reruns.
-   - Post-session feedback collection (*Too short*, *Just right*, *Too long*) and post-break energy reassessment (*Better*, *Unchanged*, *Lower*).
-
-3. **Fuzzy Task Prioritizer**
-   - Dedicated secondary Mamdani fuzzy system with 27 rules.
-   - Considers Deadline Urgency, Importance, and Difficulty to assign priority scores (0–100) and classifications (*High Priority*, *Medium Priority*, *Low Priority*).
-   - Constrained so high topic difficulty alone never inappropriately overrides low importance and relaxed deadlines.
-   - Full task management (add, inspect, rank, and delete tasks).
-
-4. **Heuristic Daily Scheduling (Greedy Best-First Search - GBFS)**
-   - Algorithmic schedule construction given today's available study budget and preferred break durations.
-   - Explores state space guided by an urgency-and-priority heuristic penalty $h(n)$.
-   - Guarantees feasibility: total planned study and break time never exceeds available budget.
-   - Clearly flags unscheduled tasks with exact reasons (e.g. insufficient remaining time).
-
-5. **Personalization & Bounded Adaptation**
-   - Configurable focus styles (*Balanced*, *Short bursts*, *Longer sessions*) and preferred study times (*Morning*, *Afternoon*, *Night*).
-   - Rule-based session adaptation based on past feedback (bounded to $\pm 15$ minutes, keeping safety bounds between 15 and 90 minutes).
-   - Transparent reporting: base fuzzy inference is always displayed alongside any applied adjustments.
-
-6. **Progress Tracking & Data Export**
-   - Local privacy-first persistence (no external databases required).
-   - Session logs with timestamps, task names, durations, and student feedback.
-   - One-click data export to **JSON** and **CSV**.
-
-7. **AISC System Analysis & Technical Verification**
-   - Interactive visualizations of membership functions for both fuzzy systems.
-   - Full 81-rule and 27-rule base explorers.
-   - Formal mathematical specification of the Greedy Best-First Search algorithm.
-   - 2D heatmaps of rule firing strength and recommended study duration across sleep and energy dimensions.
+The application features a modern, full-stack architecture with a **FastAPI** computational intelligence backend and a **React + Vite + TypeScript** SaaS web interface, while maintaining the legacy **Streamlit** dashboard as a functional fallback.
 
 ---
 
-## 🔬 AISC Algorithms & Architecture
+## 🌟 Architecture Overview
 
 ```
                                ┌────────────────────────────────────────────────────────┐
@@ -59,66 +17,99 @@ Upgraded from the original **Study Session Advisor**, this system combines **Mam
                                                            │
                       ┌────────────────────────────────────┴────────────────────────────────────┐
                       ▼                                                                         ▼
-       Computational Intelligence (Fuzzy Logic)                                 Artificial Intelligence Search
+       Frontend Interface Layer                                                FastAPI & Computational Layer
    ┌──────────────────────────────────────────────┐                           ┌──────────────────────────────────────────────┐
-   │ 1. Study Advisor Engine (81 Rules)           │                           │ Greedy Best-First Search (GBFS) Scheduler    │
-   │    - Inputs: Sleep, Energy, Urgency, Diff    │                           │ - State: (scheduled, time_spent, remaining)  │
-   │    - Min AND operator, Max aggregation       │                           │ - Actions: Add candidate task fitting budget │
-   │    - Discrete Centroid Defuzzification       │                           │ - Heuristic h(n): Penalty on unscheduled     │
-   │    - Outputs: Study, Break, Intensity, Rest  │                           │   urgent & high-priority coursework          │
-   ├──────────────────────────────────────────────┤                           │ - Output: Feasible timeline & break blocks   │
-   │ 2. Task Prioritizer (27 Rules)               │                           └──────────────────────────────────────────────┘
-   │    - Inputs: Deadline, Importance, Difficulty│
-   │    - Priority score (0-100) & classification │
-   └──────────────────────────────────────────────┘
+   │ React 19 + TypeScript + Vite + Tailwind CSS  │                           │ Python 3.10+ FastAPI Backend (Port 8000)     │
+   │ - Dashboard Overview & Metric Analytics      │ ──── HTTP REST APIs ────▶ │ - Mamdani Fuzzy Advisor (81 Rules)           │
+   │ - Stamina Check-In & Study Advisor           │                           │ - Mamdani Task Prioritizer (27 Rules)        │
+   │ - Live Study / Break Countdown Timer         │ ◀── JSON Data Stream ─── │ - Greedy Best-First Search (GBFS) Scheduler  │
+   │ - Priority Queue Task Manager                │                           │ - Bounded Adaptive Feedback Engine (±15m)    │
+   │ - GBFS Timeline & Feasibility Planner        │                           │ - Local JSON Privacy-Preserving Persistence  │
+   │ - Recharts Membership Curve & Heatmap Visuals│                           │ - CSV & JSON Exporters                       │
+   └──────────────────────────────────────────────┘                           └──────────────────────────────────────────────┘
+                      │                                                                         │
+                      └──────────────────────────── (Optional Fallback) ────────────────────────┘
+                                                    Streamlit Dashboard
+                                                  (streamlit run app.py)
 ```
 
-### 1. Mamdani Fuzzy Inference (Advisor)
+---
+
+## 🔬 AISC Algorithms & Computational Intelligence
+
+### 1. Stamina-Aware Study Advisor (81 Mamdani Rules)
 - **Inputs**:
   - Sleep Hours $\in [0, 12]$ (Trapezoidal Low, Triangular Medium, Trapezoidal High)
   - Energy Level $\in [0, 10]$ (Trapezoidal Drained, Triangular Okay, Trapezoidal Energized)
   - Deadline Urgency $\in [0, 30]$ (Trapezoidal Imminent, Triangular Near, Trapezoidal Far)
   - Topic Difficulty $\in [0, 10]$ (Trapezoidal Easy, Triangular Medium, Trapezoidal Hard)
 - **Student-Friendly Rule Constraints**:
-  - Intensity is capped at 3 when energy is Drained.
-  - Intensity is capped at 5 when sleep is Low.
-  - Aggregation uses maximum operator; defuzzification uses discrete centroid of area over the respective output universes.
+  - Intensity is capped at 3 when energy is *Drained*.
+  - Intensity is capped at 5 when sleep is *Low*.
+  - Complete $3^4 = 81$ rule Cartesian grid guarantees **100% non-zero activation coverage** without dead zones.
+  - Conjunction: Minimum operator ($\min$); Aggregation: Maximum operator ($\max$).
+  - Defuzzification: Continuous discrete Centroid (Center of Area).
 
-### 2. Heuristic Search Scheduler (GBFS)
-- **Search Space**: Each node represents a partial schedule $(S, t_{\text{used}}, R)$, where $S$ is the sequence of scheduled tasks and breaks, $t_{\text{used}}$ is time elapsed, and $R$ is remaining unscheduled tasks.
-- **Feasibility Constraint**: $t_{\text{used}} + t_{\text{break}} + t_{\text{duration}}(t) \le B_{\text{available}}$.
-- **Heuristic Function $h(n)$**:
-- Guided by a min-heap priority queue, GBFS expands states that minimize the cost of leaving urgent and critical work uncompleted.
-- **Search Complexity & Optimality**: Greedy Best-First Search provides rapid, polynomial-time schedule generation with effective state pruning, prioritizing imminent coursework. Like standard GBFS algorithms, it optimizes for urgency reduction rather than guaranteeing global combinatorial optimality.
+### 2. Multi-Attribute Task Prioritizer (27 Mamdani Rules)
+- **Inputs**: Days to Deadline $\in [0, 30]$, Importance $\in [1, 10]$, Difficulty $\in [1, 10]$.
+- **Consequent**: Priority Score $\in [0, 100]$ classified into *High Priority*, *Medium Priority*, and *Low Priority*.
+- Prevents cognitive traps where high difficulty inappropriately eclipses urgent or critical coursework.
+
+### 3. Heuristic Daily Scheduler (Greedy Best-First Search - GBFS)
+- **State Representation**: $S = (T_{\text{rem}}, t_{\text{elapsed}})$, where $T_{\text{rem}}$ is the unassigned task set and $t_{\text{elapsed}}$ is total planned minutes.
+- **Feasibility Constraint**: $t_{\text{elapsed}} + \text{duration}(t) + \text{break} \le \text{Budget}_{\text{available}}$.
+- **Heuristic Evaluation Function**:
+  $$h(n) = \sum_{t \in T_{\text{rem}}} \text{Priority}(t) \cdot \left(1 + \frac{\text{Duration}(t)}{\text{DeadlineDays}(t) \cdot 60}\right)$$
+- Guarantees strict feasibility: total planned study and rest blocks never exceed available daily time budget.
+
+### 4. Bounded Feedback Adaptation
+- Records student session feedback (*Too short*, *Just right*, *Too long*) and post-break recovery energy (*Better*, *Unchanged*, *Lower*).
+- Adapts baseline fuzzy outputs dynamically by adjusting an adaptation offset bounded within $[-15, +15]$ minutes, ensuring session recommendations remain within safe cognitive limits ($15 \le \text{Study} \le 90$ mins).
 
 ---
 
-## 📂 Repository Structure
+## 📁 Repository Structure
 
-- `app.py`: Streamlit multi-section user interface, timer, and workflow coordinator.
-- `fuzzy_advisor.py`: 4-input, 81-rule Mamdani fuzzy inference engine for study and break advice.
-- `task_prioritizer.py`: 3-input, 27-rule Mamdani fuzzy engine for task prioritization.
-- `scheduler.py`: Greedy Best-First Search (GBFS) algorithm for daily schedule generation.
-- `storage.py`: Local JSON persistence, user preferences, rule-based feedback adaptation, and CSV/JSON export.
-- `fuzzy_engine.py`: Original 3-input 27-rule fuzzy engine retained for baseline comparisons and heatmap analysis.
-- `analysis_tools.py`: Coverage verification and 2D heatmap generation across parameter spaces.
-- `plots.py`: Matplotlib membership function visualizers.
-- `test_fuzzy_advisor.py`: Unit tests for advisor inference, boundary values, rule constraints, and realistic student scenarios.
-- `test_task_prioritizer.py`: Unit tests for task priority scores, edge cases, and ranking.
-- `test_scheduler.py`: Unit tests for GBFS scheduling, feasibility budgets, break insertion, and deterministic outputs.
-- `test_storage.py`: Unit tests for persistence, adaptation bounds, and export functions.
-- `test_integration.py`: End-to-end integration tests for the full study and scheduling pipeline.
-- `test_fuzzy_engine.py`: Tests for the baseline 27-rule engine and coverage grid.
+```
+Study-Session-Advisor/
+├── main.py                     # FastAPI REST API wrapper around AISC modules
+├── fuzzy_advisor.py            # 4-input, 81-rule Mamdani fuzzy inference engine
+├── task_prioritizer.py         # 3-input, 27-rule Mamdani task prioritizer
+├── scheduler.py                # Greedy Best-First Search (GBFS) heuristic scheduler
+├── storage.py                  # Local JSON data layer, bounded feedback, and exporters
+├── analysis_tools.py           # 2D surface coverage and heatmap generation
+├── app.py                      # Original Streamlit dashboard (preserved as fallback)
+├── requirements.txt            # Python dependencies (FastAPI, Uvicorn, Streamlit, Pytest)
+├── study_data.json             # Local privacy-preserving user study records
+├── test_api.py                 # FastAPI integration and endpoint tests
+├── test_fuzzy_advisor.py       # 81-rule advisor unit tests & boundary checks
+├── test_task_prioritizer.py    # 27-rule prioritizer unit tests
+├── test_scheduler.py           # GBFS heuristic search & feasibility tests
+├── test_storage.py             # Storage, feedback adaptation, and export tests
+├── test_integration.py         # Full end-to-end Python pipeline tests
+└── frontend/                   # Modern React + Vite + TypeScript full-stack web UI
+    ├── package.json            # Frontend dependencies (React, Recharts, Lucide, Tailwind)
+    ├── vite.config.ts          # Vite configuration with API reverse proxy
+    ├── index.html              # Web application entry HTML
+    └── src/
+        ├── types/              # TypeScript interface definitions
+        ├── services/           # Typed API service client
+        ├── components/
+        │   ├── common/         # Badge, Card, MetricCard, PreferencesModal
+        │   ├── layout/         # Header, Sidebar responsive navigation
+        │   └── views/          # Dashboard, Advisor, Tasks, Planner, History, Technical
+        └── index.css           # Tailwind CSS styling and theme tokens
+```
 
 ---
 
 ## 🚀 Setup & Execution
 
-### Prerequisites
-- Python 3.10+ (Standard Library used for fuzzy logic and heuristic search; no NumPy or scikit-fuzzy dependencies).
-- Virtual environment recommended.
+### 1. Prerequisites
+- **Python 3.10+**
+- **Node.js 18+** and **npm**
 
-### Installation
+### 2. Backend Setup & Startup
 
 ```bash
 # Clone the repository
@@ -134,11 +125,34 @@ python -m venv .venv
 # macOS / Linux:
 source .venv/bin/activate
 
-# Install dependencies
+# Install Python dependencies
 pip install -r requirements.txt
+
+# Start FastAPI backend (port 8000)
+uvicorn main:app --reload --port 8000
 ```
 
-### Run the Application
+The interactive OpenAPI documentation will be accessible at: `http://127.0.0.1:8000/docs`.
+
+### 3. Frontend Setup & Startup
+
+In a separate terminal:
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start Vite development server
+npm run dev
+```
+
+Open your browser at `http://localhost:5173`. The Vite proxy will automatically route all `/api` requests to the FastAPI backend at `http://127.0.0.1:8000`.
+
+### 4. Streamlit Fallback Dashboard
+
+To run the legacy Streamlit interface:
 
 ```bash
 streamlit run app.py
@@ -146,18 +160,33 @@ streamlit run app.py
 
 Open your browser at `http://localhost:8501`.
 
-### Run the Test Suite
+---
+
+## 🧪 Automated Testing & Verification
+
+Run the full Python test suite:
 
 ```bash
 python -m pytest -v
 ```
 
-All 57 unit and integration tests should pass.
+**Result: 66 of 66 tests passing** across inference engines, boundary conditions, GBFS schedule constraints, feedback adaptation, and REST API endpoints.
+
+Verify the frontend production build:
+
+```bash
+cd frontend
+npm run build
+```
+
+TypeScript compiler (`tsc -b`) and Vite production bundle complete with **zero errors**.
 
 ---
 
-## ⚠️ Assumptions & Limitations
+## 📜 Academic Integrity & Project Purpose
 
-1. **AISC Pedagogical Design**: Membership functions, rule bases, priority weights, and heuristic penalties are project-designed assumptions for college study management; they are not medical or cognitive prescriptions.
-2. **Local Session Scope**: Storage uses a local JSON file (`study_data.json`) and Streamlit session state scoped to the local environment. No cloud database or multi-user authentication is included.
-3. **Timer Refresh**: The countdown timer operates via Streamlit state reruns; full browser reloads restart the active second counter to the last saved minute mark.
+Built as an Artificial Intelligence Search and Computational Intelligence (AISC) academic project. Demonstrates practical application of:
+1. Multi-antecedent **Mamdani Fuzzy Inference Systems** for complex decision support.
+2. **Heuristic State-Space Search (GBFS)** for constrained combinatorial optimization.
+3. **Closed-loop adaptive learning** via bounded user feedback.
+4. Professional full-stack software architecture with clean decoupling of reasoning logic and presentation.
