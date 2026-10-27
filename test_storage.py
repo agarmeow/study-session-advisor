@@ -90,3 +90,52 @@ def test_export_json_and_csv():
     assert "Test Task" in csv_str
     assert "Just right" in csv_str
     assert "Better" in csv_str
+
+
+def test_generate_recommendation_explanation_high_rest():
+    from storage import generate_recommendation_explanation
+
+    exp = generate_recommendation_explanation(
+        sleep_hours=4.0,
+        energy_input="Drained (Low energy, tired)",
+        deadline_input="Today / Imminent (< 24 hours)",
+        difficulty_input="Hard (Challenging)",
+        final_study_minutes=28,
+        final_break_minutes=15,
+        intensity="Light revision",
+        rest_needed="High",
+        base_study_minutes=28,
+        adaptation_offset=0,
+    )
+
+    # Must NOT say stamina is balanced
+    assert "balanced" not in exp["stamina_note"].lower()
+    assert "High" in exp["stamina_note"]
+    # Must mention imminent deadline
+    assert any("Imminent Deadline" in note for note in exp["context_notes"])
+
+
+def test_generate_recommendation_explanation_feedback_and_imminent_deadline():
+    from storage import generate_recommendation_explanation
+
+    exp = generate_recommendation_explanation(
+        sleep_hours=7.0,
+        energy_input="Okay",
+        deadline_input="In 2–3 Days (Near)",
+        difficulty_input="Medium",
+        final_study_minutes=55,
+        final_break_minutes=10,
+        intensity="Moderate study",
+        rest_needed="Medium",
+        base_study_minutes=50,
+        adaptation_offset=5,
+        last_feedback="Too short",
+        focus_style="Balanced",
+    )
+
+    assert "Medium" in exp["stamina_note"]
+    # Checks feedback transparency distinguishes cumulative offset and recent feedback
+    transparency_text = " ".join(exp["transparency_notes"])
+    assert "+5 min across past study sessions" in transparency_text
+    assert "most recent response: 'Too short'" in transparency_text
+

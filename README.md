@@ -88,8 +88,8 @@ Upgraded from the original **Study Session Advisor**, this system combines **Mam
 - **Search Space**: Each node represents a partial schedule $(S, t_{\text{used}}, R)$, where $S$ is the sequence of scheduled tasks and breaks, $t_{\text{used}}$ is time elapsed, and $R$ is remaining unscheduled tasks.
 - **Feasibility Constraint**: $t_{\text{used}} + t_{\text{break}} + t_{\text{duration}}(t) \le B_{\text{available}}$.
 - **Heuristic Function $h(n)$**:
-  $$h(n) = \sum_{t \in R} \text{PriorityScore}(t) \times \frac{4.0}{\text{DeadlineDays}(t) + 0.5}$$
 - Guided by a min-heap priority queue, GBFS expands states that minimize the cost of leaving urgent and critical work uncompleted.
+- **Search Complexity & Optimality**: Greedy Best-First Search provides rapid, polynomial-time schedule generation with effective state pruning, prioritizing imminent coursework. Like standard GBFS algorithms, it optimizes for urgency reduction rather than guaranteeing global combinatorial optimality.
 
 ---
 
@@ -152,7 +152,7 @@ Open your browser at `http://localhost:8501`.
 python -m pytest -v
 ```
 
-All 55 unit and integration tests should pass.
+All 57 unit and integration tests should pass.
 
 ---
 

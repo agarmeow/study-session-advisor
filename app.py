@@ -1,10 +1,10 @@
 """Fuzzy Study Intelligence System.
 
-A student-friendly intelligent study companion powered by:
-1. Mamdani Fuzzy Inference for personalized study and break recommendations.
-2. Mamdani Fuzzy Prioritization for student tasks.
-3. Heuristic-Guided Search (Greedy Best-First Search) for daily schedule planning.
-4. Bounded rule-based feedback adaptation and focus preferences.
+A polished, student-friendly study companion powered by:
+1. Mamdani Fuzzy Inference for stamina-aware study and break recommendations.
+2. Mamdani Fuzzy Prioritization for coursework and assignments.
+3. Heuristic Search (Greedy Best-First Search) for daily schedule planning.
+4. Bounded rule-based feedback adaptation and personalized focus preferences.
 """
 
 import time
@@ -34,6 +34,7 @@ from storage import (
     apply_adaptation_and_preferences,
     export_history_json,
     export_sessions_csv,
+    generate_recommendation_explanation,
     get_default_data,
     load_user_data,
     record_session,
@@ -48,7 +49,7 @@ from task_prioritizer import (
 
 
 # --------------------------------------------------
-# PAGE CONFIGURATION & STYLING
+# PAGE CONFIGURATION & MEDILINK-INSPIRED STYLING
 # --------------------------------------------------
 
 st.set_page_config(
@@ -58,37 +59,213 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom light clean CSS for typography and cards
+# Premium light theme CSS with restrained coral accents and clean SaaS hierarchy
 st.markdown(
     """
     <style>
-    .metric-card {
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        padding: 16px;
-        border: 1px solid #e9ecef;
-        text-align: center;
+    /* Base typography and background */
+    .stApp {
+        background-color: #f8fafc;
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #1e293b;
     }
-    .recommendation-box {
-        background: linear-gradient(135deg, #f0f7ff 0%, #e6f0fa 100%);
-        border-left: 5px solid #0d6efd;
-        padding: 20px;
-        border-radius: 8px;
+    
+    /* Clean sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid #e2e8f0;
+    }
+    
+    /* Headings hierarchy */
+    h1 {
+        font-size: 1.65rem !important;
+        font-weight: 700 !important;
+        color: #0f172a !important;
+        margin-bottom: 0.35rem !important;
+        letter-spacing: -0.02em !important;
+    }
+    h2 {
+        font-size: 1.25rem !important;
+        font-weight: 600 !important;
+        color: #1e293b !important;
+        margin-top: 1.25rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    h3 {
+        font-size: 1.05rem !important;
+        font-weight: 600 !important;
+        color: #334155 !important;
+    }
+    
+    /* SaaS Card containers */
+    .saas-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-bottom: 18px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    }
+    
+    .saas-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    
+    .saas-card-title {
+        font-size: 1.08rem;
+        font-weight: 600;
+        color: #0f172a;
+    }
+    
+    .saas-card-desc {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin-bottom: 14px;
+    }
+    
+    /* Coral Accent Buttons */
+    button[kind="primary"] {
+        background-color: #e0564c !important;
+        border-color: #e0564c !important;
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        padding: 0.45rem 1.1rem !important;
+        transition: all 0.15s ease-in-out !important;
+    }
+    button[kind="primary"]:hover {
+        background-color: #c93f35 !important;
+        border-color: #c93f35 !important;
+        box-shadow: 0 2px 4px rgba(224, 86, 76, 0.25) !important;
+    }
+    
+    button[kind="secondary"] {
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #334155 !important;
+        font-weight: 500 !important;
+        border-radius: 8px !important;
+    }
+    button[kind="secondary"]:hover {
+        border-color: #94a3b8 !important;
+        background-color: #f8fafc !important;
+    }
+    
+    /* Streamlit Metrics Polished & Responsive */
+    [data-testid="stMetric"] {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 14px 18px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.8rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.04em !important;
+        color: #64748b !important;
+        white-space: normal !important;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 1.45rem !important;
+        font-weight: 700 !important;
+        color: #0f172a !important;
+        white-space: normal !important;
+        overflow-wrap: break-word !important;
+    }
+    
+    /* Badges & Pills */
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: 9999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+    .pill-coral {
+        background-color: #fef2f2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+    .pill-amber {
+        background-color: #fffbeb;
+        color: #b45309;
+        border: 1px solid #fde68a;
+    }
+    .pill-green {
+        background-color: #f0fdf4;
+        color: #15803d;
+        border: 1px solid #bbf7d0;
+    }
+    .pill-blue {
+        background-color: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+    }
+    .pill-slate {
+        background-color: #f1f5f9;
+        color: #475569;
+        border: 1px solid #e2e8f0;
+    }
+    
+    /* Recommendation Card Styling */
+    .rec-container {
+        background: #ffffff;
+        border: 1px solid #fed7d7;
+        border-left: 5px solid #e0564c;
+        border-radius: 10px;
+        padding: 20px 24px;
+        margin-top: 16px;
         margin-bottom: 20px;
+        box-shadow: 0 2px 6px rgba(224, 86, 76, 0.06);
     }
-    .timeline-block-study {
-        background-color: #e7f3ff;
-        border-left: 4px solid #0d6efd;
-        padding: 10px 14px;
-        margin-bottom: 8px;
-        border-radius: 4px;
+    
+    /* Timeline Blocks */
+    .timeline-study-card {
+        background: #ffffff;
+        border: 1px solid #bfdbfe;
+        border-left: 4px solid #2563eb;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 10px;
     }
-    .timeline-block-break {
-        background-color: #e8f5e9;
-        border-left: 4px solid #2e7d32;
-        padding: 8px 14px;
+    .timeline-break-card {
+        background: #f8fafc;
+        border: 1px dashed #86efac;
+        border-left: 4px solid #16a34a;
+        border-radius: 8px;
+        padding: 10px 16px;
+        margin-bottom: 10px;
+    }
+    
+    /* Timer Display */
+    .timer-display {
+        text-align: center;
+        font-size: 3.8rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: #0f172a;
+        margin: 12px 0;
+        letter-spacing: -0.03em;
+    }
+    
+    /* Nav headers */
+    .sidebar-section-title {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #94a3b8;
+        margin-top: 14px;
         margin-bottom: 8px;
-        border-radius: 4px;
     }
     </style>
     """,
@@ -103,7 +280,7 @@ st.markdown(
 if "user_data" not in st.session_state:
     st.session_state["user_data"] = load_user_data()
 
-# Ensure tasks list is in session state as Task objects
+# Ensure tasks list is stored in session state as Task objects
 if "tasks" not in st.session_state:
     raw_tasks = st.session_state["user_data"].get("tasks", [])
     task_objs = []
@@ -141,7 +318,7 @@ if "last_recommendation" not in st.session_state:
 
 
 def persist_tasks():
-    """Sync session_state tasks to user_data dictionary and save to disk."""
+    """Sync session_state tasks to user_data dictionary and save safely to local disk."""
     raw = []
     for t in st.session_state["tasks"]:
         raw.append({
@@ -160,23 +337,49 @@ def persist_tasks():
 # SIDEBAR NAVIGATION & SETTINGS
 # --------------------------------------------------
 
-st.sidebar.title("🎓 Study Intelligence")
-st.sidebar.caption("Computational Intelligence & Search Planner")
-
-nav_choice = st.sidebar.radio(
-    "Navigation",
-    [
-        "🏠 Home / Study Advisor",
-        "📋 My Tasks",
-        "📅 Today's Plan",
-        "📈 Progress & History",
-        "🧠 AI Logic / System Analysis",
-    ],
-    index=0,
+st.sidebar.markdown(
+    """
+    <div style='display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 4px 0;'>
+        <div style='background-color: #fee2e2; color: #e0564c; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: bold;'>
+            🎓
+        </div>
+        <div>
+            <div style='font-size: 1.02rem; font-weight: 700; color: #0f172a; line-height: 1.2;'>Study Intelligence</div>
+            <div style='font-size: 0.76rem; color: #64748b; font-weight: 500;'>AISC Decision Platform</div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
-st.sidebar.divider()
-st.sidebar.subheader("⚙️ Personalized Preferences")
+st.sidebar.markdown("<div class='sidebar-section-title'>Student Workspace</div>", unsafe_allow_html=True)
+
+# Primary student-facing sections
+student_nav_choices = [
+    "Study Advisor",
+    "My Tasks",
+    "Today's Plan",
+    "Progress & History",
+]
+
+primary_page = st.sidebar.radio(
+    "Navigation",
+    student_nav_choices,
+    index=0,
+    label_visibility="collapsed",
+)
+
+st.sidebar.markdown("<div class='sidebar-section-title'>System & Architecture</div>", unsafe_allow_html=True)
+view_technical = st.sidebar.checkbox(
+    "AISC Technical Details",
+    value=False,
+    help="Inspect Mamdani 81/27 rule bases, membership plots, defuzzification, and GBFS search formulation.",
+)
+
+active_page = "AISC Technical Details" if view_technical else primary_page
+
+# Personalized Preferences Card
+st.sidebar.markdown("<div class='sidebar-section-title'>Personal Preferences</div>", unsafe_allow_html=True)
 
 user_prefs = st.session_state["user_data"].get("preferences", {})
 
@@ -207,69 +410,88 @@ if (
 
 adaptation_offset = st.session_state["user_data"].get("adaptation_offset", 0)
 if adaptation_offset != 0:
-    st.sidebar.info(
-        f"💡 **Adaptive Duration:** {abs(adaptation_offset)} min "
-        f"{'added to' if adaptation_offset > 0 else 'subtracted from'} "
-        "sessions based on your past feedback."
+    offset_sign = f"+{adaptation_offset}" if adaptation_offset > 0 else f"{adaptation_offset}"
+    st.sidebar.markdown(
+        f"""
+        <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; margin-top: 10px;'>
+            <div style='font-size: 0.76rem; font-weight: 600; color: #475569;'>ADAPTIVE DURATION OFFSET</div>
+            <div style='font-size: 0.88rem; font-weight: 700; color: #0f172a; margin-top: 2px;'>{offset_sign} min applied</div>
+            <div style='font-size: 0.74rem; color: #64748b; margin-top: 2px;'>Cumulative from past feedback</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-
-st.sidebar.caption(
-    "AISC Project • Mamdani Fuzzy Logic + Heuristic Search"
-)
 
 
 # ==================================================
-# 1. HOME / STUDY ADVISOR
+# 1. STUDY ADVISOR
 # ==================================================
 
-if nav_choice == "🏠 Home / Study Advisor":
-    st.title("🎓 Fuzzy Study Intelligence System")
-    st.write(
-        "Welcome! Tell us your current state in seconds, and our fuzzy inference "
-        "system will calculate an optimal, balanced study and break session tailored to your stamina."
-    )
+if active_page == "Study Advisor":
+    st.title("Study Session Advisor")
+    st.caption("Personalized study and break duration planning powered by Mamdani Fuzzy Inference.")
 
-    st.subheader("⏱️ 10-Second Student Check-in")
-    with st.form("checkin_form"):
-        col1, col2 = st.columns(2)
+    # 10-Second Student Check-in Form Card
+    with st.container():
+        st.markdown(
+            """
+            <div class='saas-card'>
+                <div class='saas-card-header'>
+                    <div>
+                        <div class='saas-card-title'>Daily Student Check-in</div>
+                        <div class='saas-card-desc'>Tell us your current physical stamina and academic context in 10 seconds.</div>
+                    </div>
+                    <span class='pill pill-coral'>Mamdani Inference</span>
+                </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        with col1:
-            sleep_hours = st.slider(
-                "😴 How many hours did you sleep last night?",
-                min_value=0.0,
-                max_value=12.0,
-                value=7.0,
-                step=0.5,
-                help="Range: 0 to 12 hours.",
-            )
+        with st.form("checkin_form", border=False):
+            col1, col2 = st.columns(2)
 
-            energy_selection = st.radio(
-                "⚡ How is your current energy?",
-                ["Drained (Low energy, tired)", "Okay (Steady, normal)", "Energized (Fresh, alert)"],
-                index=1,
-            )
+            with col1:
+                sleep_hours = st.slider(
+                    "Hours of Sleep Last Night",
+                    min_value=0.0,
+                    max_value=12.0,
+                    value=7.0,
+                    step=0.5,
+                    help="Normal healthy range is typically 6–9 hours.",
+                )
 
-        with col2:
-            deadline_selection = st.radio(
-                "⏳ Nearest Deadline Urgency",
-                ["Today / Imminent (< 24 hours)", "In 2–3 Days (Near)", "In a Week or Later (Far)"],
-                index=1,
-            )
+                energy_selection = st.radio(
+                    "Current Energy State",
+                    ["Drained (Low energy, tired)", "Okay (Steady, normal)", "Energized (Fresh, alert)"],
+                    index=1,
+                    horizontal=False,
+                )
 
-            difficulty_selection = st.radio(
-                "📚 Topic Difficulty to Study",
-                ["Easy (Familiar review / revision)", "Medium (Standard core material)", "Hard (Challenging / abstract concepts)"],
-                index=1,
-            )
+            with col2:
+                deadline_selection = st.radio(
+                    "Nearest Deadline Urgency",
+                    ["Today / Imminent (< 24 hours)", "In 2–3 Days (Near)", "In a Week or Later (Far)"],
+                    index=1,
+                    horizontal=False,
+                )
 
-        task_choice = None
-        if st.session_state["tasks"]:
-            task_names = [t.name for t in st.session_state["tasks"]] + ["Custom / General Session"]
-            task_choice = st.selectbox("Assign this session to a task (optional):", task_names)
+                difficulty_selection = st.radio(
+                    "Topic Difficulty",
+                    ["Easy (Familiar review / revision)", "Medium (Standard core material)", "Hard (Challenging / abstract concepts)"],
+                    index=1,
+                    horizontal=False,
+                )
 
-        submitted = st.form_submit_button("🎯 Get My Study Recommendation", type="primary")
+            task_choice = None
+            if st.session_state["tasks"]:
+                task_names = [t.name for t in st.session_state["tasks"]] + ["Custom / General Session"]
+                task_choice = st.selectbox("Assign this session to a task (optional):", task_names)
 
-    # Mapping friendly student selections to internal fuzzy inputs
+            submitted = st.form_submit_button("Generate Study Recommendation", type="primary")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Numerical mappings for fuzzy inference
     energy_map = {
         "Drained (Low energy, tired)": 1.5,
         "Okay (Steady, normal)": 5.0,
@@ -299,18 +521,37 @@ if nav_choice == "🏠 Home / Study Advisor":
             difficulty=diff_val,
         )
 
-        # 2. Apply Rule-Based Adaptation & Focus Preferences
+        # 2. Apply Rule-Based Feedback Adaptation & Focus Style Preferences
+        last_fb = st.session_state["user_data"].get("last_feedback")
         adapted_res = apply_adaptation_and_preferences(
             base_study_minutes=base_res["study_minutes"],
             base_break_minutes=base_res["break_minutes"],
             intensity=base_res["intensity"],
             preferences=st.session_state["user_data"].get("preferences", {}),
             adaptation_offset=st.session_state["user_data"].get("adaptation_offset", 0),
+            last_feedback=last_fb,
+        )
+
+        # 3. Generate input-grounded explanation
+        explanation = generate_recommendation_explanation(
+            sleep_hours=sleep_hours,
+            energy_input=energy_selection,
+            deadline_input=deadline_selection,
+            difficulty_input=difficulty_selection,
+            final_study_minutes=adapted_res["final_study_minutes"],
+            final_break_minutes=adapted_res["final_break_minutes"],
+            intensity=base_res["intensity"],
+            rest_needed=base_res["rest_needed"],
+            base_study_minutes=base_res["study_minutes"],
+            adaptation_offset=st.session_state["user_data"].get("adaptation_offset", 0),
+            last_feedback=last_fb,
+            focus_style=st.session_state["user_data"].get("preferences", {}).get("focus_style", "Balanced"),
         )
 
         st.session_state["last_recommendation"] = {
             "fuzzy": base_res,
             "adapted": adapted_res,
+            "explanation": explanation,
             "inputs": {
                 "sleep": sleep_hours,
                 "energy": energy_selection,
@@ -320,59 +561,69 @@ if nav_choice == "🏠 Home / Study Advisor":
             "task_name": task_choice if task_choice else "General Study Session",
         }
 
-    # Display Recommendation Card if available
+    # Display Recommendation Card
     rec = st.session_state["last_recommendation"]
     if rec:
         fuzzy_out = rec["fuzzy"]
         adapted_out = rec["adapted"]
+        exp_out = rec.get("explanation")
         study_min = adapted_out["final_study_minutes"]
         break_min = adapted_out["final_break_minutes"]
         intensity = fuzzy_out["intensity"]
         rest_needed = fuzzy_out["rest_needed"]
 
-        st.divider()
-        st.subheader("📋 Your Personalized Recommendation")
-
-        # Recommendation Card UI
-        rcol1, rcol2, rcol3, rcol4 = st.columns(4)
-        with rcol1:
-            st.metric("Study Duration", f"{study_min} min", delta=f"Base: {fuzzy_out['study_minutes']}m" if study_min != fuzzy_out['study_minutes'] else None)
-        with rcol2:
-            st.metric("Break Duration", f"{break_min} min")
-        with rcol3:
-            st.metric("Study Approach", intensity)
-        with rcol4:
-            st.metric("Rest Needed", rest_needed)
-
-        # Natural language actionable explanation
-        explanation_lines = []
-        if intensity == "Light revision":
-            explanation_lines.append(
-                f"Start with a gentle {study_min}-minute revision session, followed by a {break_min}-minute break. "
-                "Because your stamina is depleted or sleep was limited, focus on light consolidation rather than complex problem solving."
-            )
-        elif intensity == "Challenging material":
-            explanation_lines.append(
-                f"You are well primed for a deep {study_min}-minute focused session, followed by a {break_min}-minute break. "
-                "Your energy and rest levels are high, making this an ideal window to tackle complex or urgent concepts."
-            )
-        else:
-            explanation_lines.append(
-                f"Work steadily for {study_min} minutes, followed by a {break_min}-minute rest. "
-                "Your stamina is balanced, allowing steady progress through standard coursework."
-            )
-
-        if adapted_out["adjustment_explanation"]:
-            explanation_lines.append(adapted_out["adjustment_explanation"])
-
-        st.info(" ".join(explanation_lines))
-        st.caption(
-            "Note: Recommendations and rest-needed scores are algorithmic planning guidelines "
-            "derived from fuzzy logic rules, not medical assessments."
+        # Card container
+        st.markdown(
+            f"""
+            <div class='rec-container'>
+                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;'>
+                    <div style='font-size: 1.15rem; font-weight: 700; color: #0f172a;'>
+                        Recommended Session for: <span style='color: #e0564c;'>{rec['task_name']}</span>
+                    </div>
+                    <span class='pill pill-coral'>Active Plan</span>
+                </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-        # Timer setup trigger
-        if st.button("🚀 Load Into Timer & Begin", type="primary"):
+        # 4 Responsive Metric Cards
+        mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+        with mcol1:
+            delta_str = f"Base: {fuzzy_out['study_minutes']}m" if study_min != fuzzy_out['study_minutes'] else None
+            st.metric("Study Duration", f"{study_min} min", delta=delta_str)
+        with mcol2:
+            st.metric("Break Duration", f"{break_min} min")
+        with mcol3:
+            st.metric("Approach", intensity)
+        with mcol4:
+            st.metric("Rest Needed", rest_needed)
+
+        # Grounded Explanation Content
+        if exp_out:
+            st.markdown(
+                f"""
+                <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin: 14px 0 10px 0;'>
+                    <div style='font-weight: 600; color: #0f172a; margin-bottom: 6px;'>Session Guidance</div>
+                    <div style='font-size: 0.92rem; color: #334155; line-height: 1.5;'>{exp_out['guidance']}</div>
+                    <div style='font-size: 0.88rem; color: #475569; margin-top: 8px; line-height: 1.45;'>{exp_out['stamina_note']}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # Context points
+            for point in exp_out["context_notes"]:
+                st.markdown(f"<div style='font-size: 0.86rem; color: #475569; margin-bottom: 4px;'>• {point}</div>", unsafe_allow_html=True)
+
+            with st.expander("Adjustment Transparency & Base Reasoning"):
+                for t_note in exp_out["transparency_notes"]:
+                    st.write(f"- {t_note}")
+                st.caption(exp_out["disclaimer"])
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Button to Load into Timer
+        if st.button("Load Recommendation Into Timer & Begin", type="primary"):
             st.session_state["timer_task_name"] = rec["task_name"]
             st.session_state["timer_mode"] = "study"
             st.session_state["timer_total_seconds"] = study_min * 60
@@ -384,11 +635,8 @@ if nav_choice == "🏠 Home / Study Advisor":
             st.rerun()
 
     # --------------------------------------------------
-    # STUDY & BREAK TIMER
+    # STUDY & BREAK TIMER CARD
     # --------------------------------------------------
-    st.divider()
-    st.subheader("⏱️ Study & Break Session Timer")
-
     # Handle Timer Tick
     now = time.time()
     if st.session_state["timer_state"] == "running":
@@ -401,17 +649,15 @@ if nav_choice == "🏠 Home / Study Advisor":
 
         if st.session_state["timer_remaining_seconds"] <= 0:
             if st.session_state["timer_mode"] == "study":
-                # Study block complete -> transition to break
                 st.session_state["timer_mode"] = "break"
                 break_secs = st.session_state.get("break_target_min", 10) * 60
                 st.session_state["timer_total_seconds"] = break_secs
                 st.session_state["timer_remaining_seconds"] = break_secs
                 st.session_state["timer_state"] = "paused"
-                st.toast("🎉 Study block completed! Time for a well-deserved break.")
+                st.toast("🎉 Study block completed! Time for a rest break.")
             else:
-                # Break complete
                 st.session_state["timer_state"] = "finished"
-                st.toast("☕ Break completed! How are you feeling?")
+                st.toast("☕ Break completed! Please record your feedback.")
 
     rem_seconds = st.session_state["timer_remaining_seconds"]
     tot_seconds = max(1, st.session_state["timer_total_seconds"])
@@ -419,18 +665,36 @@ if nav_choice == "🏠 Home / Study Advisor":
     secs = rem_seconds % 60
     progress_val = max(0.0, min(1.0, 1.0 - (rem_seconds / tot_seconds)))
 
-    mode_badge = "📚 Study Session" if st.session_state["timer_mode"] == "study" else "☕ Rest Break"
-    st.markdown(f"#### Current Mode: **{mode_badge}** — *{st.session_state['timer_task_name']}*")
-
-    # Big visible countdown
     st.markdown(
-        f"<h1 style='text-align: center; font-size: 64px; margin: 10px 0;'>{mins:02d}:{secs:02d}</h1>",
+        """
+        <div class='saas-card'>
+            <div class='saas-card-header'>
+                <div class='saas-card-title'>Active Session Timer</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    is_study = st.session_state["timer_mode"] == "study"
+    mode_pill = "<span class='pill pill-coral'>📚 Study Session</span>" if is_study else "<span class='pill pill-green'>☕ Rest Break</span>"
+    st.markdown(
+        f"""
+        <div style='display: flex; justify-content: space-between; align-items: center;'>
+            <div>{mode_pill} &nbsp; <span style='font-size: 0.95rem; font-weight: 600; color: #1e293b;'>{st.session_state['timer_task_name']}</span></div>
+            <div style='font-size: 0.8rem; color: #64748b; font-weight: 500;'>Status: <b>{st.session_state['timer_state'].upper()}</b></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Big visible tabular timer countdown
+    st.markdown(
+        f"<div class='timer-display'>{mins:02d}:{secs:02d}</div>",
         unsafe_allow_html=True,
     )
     st.progress(progress_val)
 
-    # Timer Controls
-    tcol1, tcol2, tcol3, tcol4 = st.columns(4)
+    # Timer Controls in clean 5-column layout
+    tcol1, tcol2, tcol3, tcol4, tcol5 = st.columns(5)
 
     with tcol1:
         if st.session_state["timer_state"] == "running":
@@ -444,14 +708,14 @@ if nav_choice == "🏠 Home / Study Advisor":
                 st.rerun()
 
     with tcol2:
-        if st.button("🔄 Reset Timer", use_container_width=True):
+        if st.button("🔄 Reset", use_container_width=True):
             st.session_state["timer_state"] = "idle"
             st.session_state["timer_remaining_seconds"] = st.session_state["timer_total_seconds"]
             st.rerun()
 
     with tcol3:
         if st.session_state["timer_mode"] == "study":
-            if st.button("⏭️ Complete Study -> Break", use_container_width=True):
+            if st.button("⏭️ Next (To Break)", use_container_width=True):
                 st.session_state["timer_mode"] = "break"
                 break_secs = st.session_state.get("break_target_min", 10) * 60
                 st.session_state["timer_total_seconds"] = break_secs
@@ -464,14 +728,30 @@ if nav_choice == "🏠 Home / Study Advisor":
                 st.rerun()
 
     with tcol4:
-        # Quick test helper: Fast forward 1 minute
         if st.button("⏩ Advance 1 Min", use_container_width=True):
             st.session_state["timer_remaining_seconds"] = max(0, st.session_state["timer_remaining_seconds"] - 60)
             st.rerun()
 
-    # Session completion & feedback dialog
+    with tcol5:
+        if st.button("⏹️ Reset All", use_container_width=True):
+            st.session_state["timer_state"] = "idle"
+            st.session_state["timer_mode"] = "study"
+            st.session_state["timer_remaining_seconds"] = 25 * 60
+            st.session_state["timer_total_seconds"] = 25 * 60
+            st.rerun()
+
+    # Feedback dialogue on completion
     if st.session_state["timer_state"] == "finished" or (st.session_state["timer_mode"] == "break" and rem_seconds == 0):
-        st.success("🎉 Session finished! Record your feedback to help the system adapt future recommendations.")
+        st.markdown(
+            """
+            <div style='background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px 18px; margin-top: 14px;'>
+                <div style='font-size: 0.95rem; font-weight: 700; color: #166534;'>🎉 Session Complete!</div>
+                <div style='font-size: 0.84rem; color: #15803d;'>Log your feedback below to conservatively adapt future session lengths.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
         with st.form("feedback_form"):
             fb_col1, fb_col2 = st.columns(2)
             with fb_col1:
@@ -482,12 +762,12 @@ if nav_choice == "🏠 Home / Study Advisor":
                 )
             with fb_col2:
                 energy_post = st.radio(
-                    "How is your energy feeling after the break?",
+                    "Energy state after the break",
                     ["Better ⚡", "Unchanged 😐", "Lower 😴"],
                     index=0,
                 )
 
-            if st.form_submit_button("💾 Save Session to History"):
+            if st.form_submit_button("Save Session & Feedback", type="primary"):
                 record_session(
                     data=st.session_state["user_data"],
                     task_name=st.session_state["timer_task_name"],
@@ -500,10 +780,12 @@ if nav_choice == "🏠 Home / Study Advisor":
                 st.session_state["timer_mode"] = "study"
                 st.session_state["timer_remaining_seconds"] = 25 * 60
                 st.session_state["timer_total_seconds"] = 25 * 60
-                st.success("Session saved! Future recommendations have been updated.")
+                st.success("Session saved! Feedback adaptation applied.")
                 st.rerun()
 
-    # If running, rerun every 1 second to update display
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Rerun tick if timer is active
     if st.session_state["timer_state"] == "running":
         time.sleep(1)
         st.rerun()
@@ -513,61 +795,92 @@ if nav_choice == "🏠 Home / Study Advisor":
 # 2. MY TASKS (FUZZY TASK PRIORITIZER)
 # ==================================================
 
-elif nav_choice == "📋 My Tasks":
-    st.title("📋 My Tasks & Fuzzy Prioritizer")
-    st.write(
-        "Manage your coursework and assignments. Our secondary Mamdani fuzzy system "
-        "evaluates urgency, importance, and difficulty to assign clear, actionable priorities."
-    )
+elif active_page == "My Tasks":
+    st.title("Task Prioritization")
+    st.caption("Coursework ranked dynamically by a 27-rule Mamdani Fuzzy Prioritizer.")
 
     # Sort tasks by fuzzy priority
     st.session_state["tasks"] = prioritize_tasks(st.session_state["tasks"])
     persist_tasks()
 
-    # Task Overview Cards / Table
+    # Summary Stats Bar
+    total_count = len(st.session_state["tasks"])
+    high_count = sum(1 for t in st.session_state["tasks"] if t.priority_level == "High Priority")
+    med_count = sum(1 for t in st.session_state["tasks"] if t.priority_level == "Medium Priority")
+    low_count = sum(1 for t in st.session_state["tasks"] if t.priority_level == "Low Priority")
+
+    scol1, scol2, scol3, scol4 = st.columns(4)
+    with scol1:
+        st.metric("Total Tasks", total_count)
+    with scol2:
+        st.metric("High Priority", high_count)
+    with scol3:
+        st.metric("Medium Priority", med_count)
+    with scol4:
+        st.metric("Low Priority", low_count)
+
+    st.markdown("---")
+
+    # Ranked Task List
+    st.subheader("Current Tasks (Ranked by Fuzzy Score)")
     if st.session_state["tasks"]:
-        st.subheader("Current Tasks (Ranked by Fuzzy Priority)")
         for idx, task in enumerate(st.session_state["tasks"]):
-            badge_color = "🔴" if task.priority_level == "High Priority" else "🟡" if task.priority_level == "Medium Priority" else "🟢"
-            with st.expander(
-                f"{badge_color} **{task.name}** [{task.subject}] — {task.priority_level} (Score: {task.priority_score}/100)",
-                expanded=(idx == 0),
-            ):
-                tcol1, tcol2, tcol3, tcol4 = st.columns(4)
-                with tcol1:
+            if task.priority_level == "High Priority":
+                badge_html = f"<span class='pill pill-coral'>High Priority • {task.priority_score}/100</span>"
+            elif task.priority_level == "Medium Priority":
+                badge_html = f"<span class='pill pill-amber'>Medium Priority • {task.priority_score}/100</span>"
+            else:
+                badge_html = f"<span class='pill pill-green'>Low Priority • {task.priority_score}/100</span>"
+
+            with st.expander(f"{task.name} ({task.subject}) — {task.priority_level} [{task.priority_score}/100]", expanded=(idx == 0)):
+                st.markdown(badge_html, unsafe_allow_html=True)
+
+                rcol1, rcol2, rcol3, rcol4 = st.columns(4)
+                with rcol1:
                     st.write(f"⏱️ **Duration:** {task.estimated_duration} min")
-                with tcol2:
-                    st.write(f"⏳ **Deadline:** {task.deadline_days} days remaining")
-                with tcol3:
+                with rcol2:
+                    st.write(f"⏳ **Deadline:** {task.deadline_days} days")
+                with rcol3:
                     st.write(f"📚 **Difficulty:** {task.difficulty}/10")
-                with tcol4:
+                with rcol4:
                     st.write(f"⭐ **Importance:** {task.importance}/10")
 
-                st.info(f"💡 **AI Reason:** {task.priority_reason}")
+                st.info(f"**AI Reasoning:** {task.priority_reason}")
 
-                if st.button(f"🗑️ Delete '{task.name}'", key=f"del_{idx}"):
+                if st.button(f"🗑️ Delete Task", key=f"del_{idx}"):
                     st.session_state["tasks"].pop(idx)
                     persist_tasks()
                     st.rerun()
     else:
-        st.info("No tasks added yet! Add your first task below to see fuzzy prioritization in action.")
+        st.info("No active tasks found. Add a coursework task below to calculate its fuzzy priority.")
 
-    st.divider()
-    st.subheader("➕ Add a New Task")
+    # Add Task Form Card
+    st.markdown(
+        """
+        <div class='saas-card'>
+            <div class='saas-card-header'>
+                <div class='saas-card-title'>Add New Coursework Task</div>
+                <span class='pill pill-slate'>Fuzzy Evaluation</span>
+            </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    with st.form("add_task_form"):
+    with st.form("add_task_form", border=False):
         col1, col2 = st.columns(2)
         with col1:
-            new_name = st.text_input("Task Name*", placeholder="e.g. Operating Systems Lab 3")
+            st.markdown("<div style='font-size: 0.82rem; font-weight: 600; color: #64748b; margin-bottom: 6px;'>TASK INFORMATION</div>", unsafe_allow_html=True)
+            new_name = st.text_input("Task Name*", placeholder="e.g. Distributed Systems Lab 3")
             new_subject = st.text_input("Subject / Course", placeholder="e.g. Computer Science")
-            new_duration = st.number_input("Estimated Duration (minutes)*", min_value=5, max_value=300, value=45, step=5)
+            new_duration = st.number_input("Estimated Duration (minutes)*", min_value=10, max_value=240, value=45, step=5)
 
         with col2:
+            st.markdown("<div style='font-size: 0.82rem; font-weight: 600; color: #64748b; margin-bottom: 6px;'>PRIORITY CRITERIA</div>", unsafe_allow_html=True)
             new_deadline = st.number_input("Days until Deadline*", min_value=0.0, max_value=60.0, value=2.0, step=0.5)
-            new_difficulty = st.slider("Difficulty (0 = Very Easy, 10 = Very Hard)", 0.0, 10.0, 5.0, 0.5)
-            new_importance = st.slider("Importance / Grade Impact (0 = Low, 10 = Crucial)", 0.0, 10.0, 7.0, 0.5)
+            new_difficulty = st.slider("Difficulty (0 = Easy, 10 = Hard)", 0.0, 10.0, 5.0, 0.5)
+            new_importance = st.slider("Importance / Grade Impact (0 = Low, 10 = Critical)", 0.0, 10.0, 7.0, 0.5)
 
-        submit_task = st.form_submit_button("Add Task & Calculate Priority", type="primary")
+        submit_task = st.form_submit_button("Add & Calculate Fuzzy Priority", type="primary")
 
     if submit_task:
         if not new_name.strip():
@@ -585,12 +898,14 @@ elif nav_choice == "📋 My Tasks":
                 st.session_state["tasks"].append(new_t)
                 st.session_state["tasks"] = prioritize_tasks(st.session_state["tasks"])
                 persist_tasks()
-                st.success(f"Task '{new_name}' added and prioritized!")
+                st.success(f"Task '{new_name}' added and evaluated.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error adding task: {e}")
 
-    if st.button("🔄 Reset to Default Sample Tasks"):
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if st.button("Reset to Sample Coursework Tasks"):
         default_data = get_default_data()
         st.session_state["tasks"] = [
             Task(
@@ -611,30 +926,51 @@ elif nav_choice == "📋 My Tasks":
 # 3. TODAY'S PLAN (HEURISTIC SEARCH SCHEDULER)
 # ==================================================
 
-elif nav_choice == "📅 Today's Plan":
-    st.title("📅 Today's Plan & Heuristic Scheduler")
-    st.write(
-        "Using **Greedy Best-First Search (GBFS)**, our scheduling algorithm organizes your "
-        "tasks into a feasible daily timeline that respects your available study hours, "
-        "prioritizes imminent deadlines, and schedules rest breaks between study sessions."
-    )
+elif active_page == "Today's Plan":
+    st.title("Today's Daily Schedule")
+    st.caption("Greedy Best-First Search (GBFS) heuristic schedule optimizer.")
 
-    scol1, scol2 = st.columns(2)
-    with scol1:
-        available_hours = st.slider("Available Study Time Today (Hours)", 0.5, 8.0, 2.5, 0.5)
-        available_minutes = int(available_hours * 60)
-    with scol2:
-        break_duration = st.selectbox("Preferred Break Duration Between Tasks", [5, 10, 15], index=1)
-
-    if st.button("⚡ Generate Schedule with Heuristic Search", type="primary"):
-        st.session_state["generated_schedule"] = schedule_tasks_gbfs(
-            tasks=st.session_state["tasks"],
-            available_time_minutes=available_minutes,
-            default_break_minutes=break_duration,
+    # Available Time Controls Card
+    with st.container():
+        st.markdown(
+            """
+            <div class='saas-card'>
+                <div class='saas-card-header'>
+                    <div>
+                        <div class='saas-card-title'>Daily Study Time Budget & Break Preferences</div>
+                        <div class='saas-card-desc'>Specify your available hours today. The scheduler will construct a feasible timeline with rest intervals.</div>
+                    </div>
+                    <span class='pill pill-blue'>AISC Search</span>
+                </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-    # Display schedule if generated or generate default
-    if "generated_schedule" not in st.session_state:
+        scol1, scol2 = st.columns(2)
+        with scol1:
+            available_hours = st.slider(
+                "Available Study Time Today",
+                min_value=0.5,
+                max_value=8.0,
+                value=2.5,
+                step=0.5,
+                help="Select your available budget. Time is displayed in both hours and minutes.",
+            )
+            available_minutes = int(available_hours * 60)
+            st.caption(f"Selected Budget: **{available_hours:.1f} hours ({available_minutes} minutes)**")
+
+        with scol2:
+            break_duration = st.selectbox(
+                "Preferred Break Duration Between Blocks",
+                [5, 10, 15],
+                index=1,
+                help="Minutes allocated for rest intervals between study tasks.",
+            )
+
+        gen_schedule_btn = st.button("Generate Optimized Schedule", type="primary")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    if gen_schedule_btn or "generated_schedule" not in st.session_state:
         st.session_state["generated_schedule"] = schedule_tasks_gbfs(
             tasks=st.session_state["tasks"],
             available_time_minutes=available_minutes,
@@ -643,23 +979,32 @@ elif nav_choice == "📅 Today's Plan":
 
     sched = st.session_state["generated_schedule"]
 
-    st.divider()
-    st.subheader("📊 Schedule Summary")
-    mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+    # Summary Metrics Card
+    st.subheader("Schedule Feasibility & Breakdown")
+    mcol1, mcol2, mcol3, mcol4, mcol5 = st.columns(5)
     with mcol1:
-        st.metric("Total Planned Time", f"{sched.total_planned_time} min")
+        st.metric("Available Budget", f"{available_minutes} min", f"{available_hours:.1f} hrs")
     with mcol2:
-        st.metric("Study Time", f"{sched.total_study_time} min")
+        st.metric("Total Planned", f"{sched.total_planned_time} min")
     with mcol3:
-        st.metric("Break Time", f"{sched.total_break_time} min")
+        st.metric("Study Time", f"{sched.total_study_time} min")
     with mcol4:
+        st.metric("Break Time", f"{sched.total_break_time} min")
+    with mcol5:
         st.metric("Remaining Buffer", f"{sched.remaining_available_time} min")
 
     if sched.total_planned_time <= available_minutes:
-        st.success("✅ Feasible Schedule: 100% fits within your available time budget.")
+        st.markdown(
+            f"""
+            <div style='background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.88rem; color: #166534;'>
+                ✅ <b>Feasible Schedule Confirmed:</b> Total planned time ({sched.total_planned_time} min) fits 100% within your available budget ({available_minutes} min).
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    # Timeline view
-    st.subheader("🗓️ Structured Daily Timeline")
+    # Structured Timeline Blocks
+    st.subheader("Planned Study Timeline")
     if sched.blocks:
         base_h = 9
         for block in sched.blocks:
@@ -668,76 +1013,105 @@ elif nav_choice == "📅 Today's Plan":
 
             if block.block_type == "study":
                 st.markdown(
-                    f"<div class='timeline-block-study'>"
-                    f"⏰ <b>{t_start} – {t_end}</b> ({block.duration_minutes} min) &nbsp;|&nbsp; "
-                    f"📚 <b>{block.task_name}</b> [{block.subject}] &nbsp;•&nbsp; <i>{block.priority_level}</i>"
-                    f"</div>",
+                    f"""
+                    <div class='timeline-study-card'>
+                        <div style='display: flex; justify-content: space-between; align-items: center;'>
+                            <div style='font-size: 0.95rem; font-weight: 700; color: #1e3a8a;'>
+                                ⏰ {t_start} – {t_end} &nbsp; ({block.duration_minutes} min)
+                            </div>
+                            <span class='pill pill-blue'>{block.priority_level or 'Study Block'}</span>
+                        </div>
+                        <div style='font-size: 0.92rem; font-weight: 600; color: #0f172a; margin-top: 4px;'>
+                            📚 {block.task_name} &nbsp; <span style='font-size: 0.82rem; color: #64748b; font-weight: normal;'>[{block.subject}]</span>
+                        </div>
+                    </div>
+                    """,
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
-                    f"<div class='timeline-block-break'>"
-                    f"⏰ <b>{t_start} – {t_end}</b> ({block.duration_minutes} min) &nbsp;|&nbsp; "
-                    f"☕ <b>{block.task_name}</b> — Step away, hydrate, and stretch."
-                    f"</div>",
+                    f"""
+                    <div class='timeline-break-card'>
+                        <div style='font-size: 0.9rem; font-weight: 700; color: #15803d;'>
+                            ☕ {t_start} – {t_end} &nbsp; ({block.duration_minutes} min) — Rest & Recharge Break
+                        </div>
+                        <div style='font-size: 0.82rem; color: #475569; margin-top: 2px;'>
+                            Step away from the screen, hydrate, and stretch.
+                        </div>
+                    </div>
+                    """,
                     unsafe_allow_html=True,
                 )
     else:
-        st.warning("No tasks could be scheduled. Check your available time budget or task list.")
+        st.info("No tasks could be scheduled within the selected time window. Increase available study hours or reduce task durations.")
 
-    # Unscheduled tasks
+    # Unscheduled Tasks
     if sched.unscheduled_tasks:
-        st.subheader("⚠️ Unscheduled Tasks")
-        st.write("These tasks could not be scheduled in today's time window:")
+        st.markdown(
+            """
+            <div style='background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 18px; margin-top: 14px;'>
+                <div style='font-weight: 700; color: #92400e; font-size: 0.95rem; margin-bottom: 6px;'>Unscheduled Tasks & Constraints</div>
+            """,
+            unsafe_allow_html=True,
+        )
         for unsched in sched.unscheduled_tasks:
             t = unsched["task"]
-            st.markdown(f"- **{t.name}** ({t.estimated_duration} min) — *Reason: {unsched['reason']}*")
+            st.markdown(f"<div style='font-size: 0.86rem; color: #78350f; margin-bottom: 4px;'>• <b>{t.name}</b> ({t.estimated_duration} min) — <i>{unsched['reason']}</i></div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # Algorithm Details Expander
-    with st.expander("🔍 AISC Algorithm Details: Greedy Best-First Search (GBFS)"):
-        st.write(
-            """
-            **How the Heuristic Search Works:**
-            - **State Space:** Each node represents a partial schedule `(scheduled_tasks, time_spent, remaining_tasks)`.
-            - **Candidate Actions:** Picking an unscheduled task that satisfies feasibility `time_spent + break + duration <= budget`.
-            - **Heuristic Function \\(h(n)\\):**
-              $$\\sum_{t \\in \\text{remaining}} \\text{PriorityScore}(t) \\times \\frac{4.0}{\\text{DeadlineDays}(t) + 0.5}$$
-              GBFS guides search towards states that minimize the penalty of leaving urgent, high-priority tasks uncompleted.
-            """
-        )
-        st.write(f"**Nodes expanded during search:** {sched.algorithm_info.get('nodes_expanded', 0)}")
-        st.write(f"**Initial Urgency Penalty \\(h(0)\\):** {sched.algorithm_info.get('initial_heuristic', 0)}")
-        st.write(f"**Final Remaining Penalty \\(h(\\text{best})\\):** {sched.algorithm_info.get('final_heuristic', 0)}")
+    # GBFS Algorithm Details Expander (with fixed LaTeX format)
+    with st.expander("AISC Algorithm Details: Greedy Best-First Search (GBFS)"):
+        try:
+            st.markdown(
+                r"""
+                **Search Formulation:**
+                - **State Space:** Each node represents a partial schedule $(S, t_{\text{used}}, R)$, where $S$ is scheduled tasks/breaks, $t_{\text{used}}$ is elapsed minutes, and $R$ is remaining unscheduled coursework.
+                - **Feasibility Constraint:** $t_{\text{used}} + t_{\text{break}} + t_{\text{duration}}(t) \le B_{\text{available}}$.
+                - **Heuristic Function $h(n)$:**
+                  $$h(n) = \sum_{t \in R} \text{PriorityScore}(t) \times \frac{4.0}{\text{DeadlineDays}(t) + 0.5}$$
+                - **Search Strategy:** Guided by a min-heap priority queue, expanding states that minimize the cost of leaving urgent and critical work uncompleted.
+                """
+            )
+            nodes_val = sched.algorithm_info.get("nodes_expanded", 0)
+            init_h = sched.algorithm_info.get("initial_heuristic", 0)
+            final_h = sched.algorithm_info.get("final_heuristic", 0)
+
+            st.write(f"- **Nodes expanded during search:** `{nodes_val}`")
+            st.write(f"- **Initial Urgency Penalty \\(h(0)\\):** `{init_h}`")
+            st.markdown(f"- **Final Remaining Penalty \\(h(\\text{{best}})\\):** `{final_h}`")
+        except Exception as e:
+            st.error("Error displaying search metrics.")
+            st.caption(f"Detail: {e}")
 
 
 # ==================================================
 # 4. PROGRESS & HISTORY
 # ==================================================
 
-elif nav_choice == "📈 Progress & History":
-    st.title("📈 Study Progress & History")
-    st.write(
-        "Review your completed study sessions, feedback adaptation metrics, and export your history."
-    )
+elif active_page == "Progress & History":
+    st.title("Progress & History")
+    st.caption("Review completed study sessions, feedback adaptation metrics, and export history.")
 
     sessions = st.session_state["user_data"].get("sessions", [])
-
     total_study_mins = sum(s.get("study_minutes", 0) for s in sessions)
     total_break_mins = sum(s.get("break_minutes", 0) for s in sessions)
     completed_count = len(sessions)
 
+    # Summary Metrics Card
     mcol1, mcol2, mcol3, mcol4 = st.columns(4)
     with mcol1:
         st.metric("Completed Sessions", completed_count)
     with mcol2:
-        st.metric("Total Study Time", f"{total_study_mins} min")
+        hours_str = f"{total_study_mins // 60}h {total_study_mins % 60}m"
+        st.metric("Total Study Time", f"{total_study_mins} min", hours_str)
     with mcol3:
         st.metric("Total Break Time", f"{total_break_mins} min")
     with mcol4:
         offset = st.session_state["user_data"].get("adaptation_offset", 0)
-        st.metric("Adaptive Offset", f"{'+' if offset > 0 else ''}{offset} min")
+        offset_display = f"{'+' if offset > 0 else ''}{offset} min"
+        st.metric("Adaptive Offset", offset_display)
 
-    st.divider()
+    st.markdown("---")
 
     if sessions:
         st.subheader("Session Log")
@@ -754,7 +1128,7 @@ elif nav_choice == "📈 Progress & History":
 
         st.dataframe(display_rows, use_container_width=True)
 
-        st.subheader("💾 Export Study Data")
+        st.subheader("Data Export")
         ecol1, ecol2 = st.columns(2)
         with ecol1:
             json_data = export_history_json(st.session_state["user_data"])
@@ -763,33 +1137,32 @@ elif nav_choice == "📈 Progress & History":
                 data=json_data,
                 file_name="study_intelligence_history.json",
                 mime="application/json",
+                use_container_width=True,
             )
         with ecol2:
             csv_data = export_sessions_csv(st.session_state["user_data"])
             st.download_button(
-                label="📥 Download History (CSV)",
+                label="📥 Download Sessions (CSV)",
                 data=csv_data,
                 file_name="study_sessions.csv",
                 mime="text/csv",
+                use_container_width=True,
             )
     else:
-        st.info("No study sessions logged yet. Complete a study session with the timer on the Home page to start tracking!")
+        st.info("No study sessions logged yet. Complete your first study session from the Study Advisor tab to start tracking progress.")
 
 
 # ==================================================
-# 5. AI LOGIC / SYSTEM ANALYSIS
+# 5. AISC TECHNICAL DETAILS (ABOUT THIS SYSTEM)
 # ==================================================
 
-elif nav_choice == "🧠 AI Logic / System Analysis":
-    st.title("🧠 AISC System Analysis & Architecture")
-    st.write(
-        "Technical verification and visualization of the Computational Intelligence "
-        "and Search algorithms powering the Fuzzy Study Intelligence System."
-    )
+elif active_page == "AISC Technical Details":
+    st.title("AISC System Architecture & Technical Verification")
+    st.caption("Deep technical verification of Fuzzy Inference Systems and Heuristic Search Algorithms.")
 
     tab1, tab2, tab3, tab4 = st.tabs([
-        "Advisor Fuzzy Sets (81 Rules)",
-        "Task Prioritizer Sets (27 Rules)",
+        "Study Advisor (81 Rules)",
+        "Task Prioritizer (27 Rules)",
         "Heuristic Search Formalism",
         "Heatmaps & Coverage Analysis",
     ])
@@ -797,38 +1170,38 @@ elif nav_choice == "🧠 AI Logic / System Analysis":
     with tab1:
         st.subheader("Study Advisor: 4-Input Mamdani System")
         st.write(
-            "Uses 81 Mamdani fuzzy rules covering sleep (3), energy (3), deadline urgency (3), "
-            "and topic difficulty (3). Consequents determine study duration, break duration, intensity, and rest needed."
+            "Mamdani-style inference engine with 81 unique rules covering Sleep (3), Energy (3), "
+            "Deadline Urgency (3), and Topic Difficulty (3). Defuzzification is evaluated via discrete centroid of area."
         )
 
-        # Plot Advisor Membership Functions
+        # Plot Advisor Membership Curves
         x_sleep = [i * 0.1 for i in range(121)]
         x_scale = [i * 0.1 for i in range(101)]
 
-        fig, axes = plt.subplots(2, 2, figsize=(12, 7))
+        fig, axes = plt.subplots(2, 2, figsize=(11, 6))
 
         # Sleep
-        axes[0, 0].plot(x_sleep, [trapezoidal(x, 0, 0, 4, 6) for x in x_sleep], label="Low")
-        axes[0, 0].plot(x_sleep, [triangular(x, 4, 7, 9) for x in x_sleep], label="Medium")
-        axes[0, 0].plot(x_sleep, [trapezoidal(x, 7, 9, 12, 12) for x in x_sleep], label="High")
+        axes[0, 0].plot(x_sleep, [trapezoidal(x, 0, 0, 4, 6) for x in x_sleep], label="Low", color="#e0564c")
+        axes[0, 0].plot(x_sleep, [triangular(x, 4, 7, 9) for x in x_sleep], label="Medium", color="#d97706")
+        axes[0, 0].plot(x_sleep, [trapezoidal(x, 7, 9, 12, 12) for x in x_sleep], label="High", color="#16a34a")
         axes[0, 0].set_title("Sleep (Hours)")
         axes[0, 0].set_ylim(-0.05, 1.05)
         axes[0, 0].legend()
         axes[0, 0].grid(True, alpha=0.3)
 
         # Energy
-        axes[0, 1].plot(x_scale, [trapezoidal(x, 0, 0, 2, 4) for x in x_scale], label="Drained")
-        axes[0, 1].plot(x_scale, [triangular(x, 2, 5, 8) for x in x_scale], label="Okay")
-        axes[0, 1].plot(x_scale, [trapezoidal(x, 6, 8, 10, 10) for x in x_scale], label="Energized")
+        axes[0, 1].plot(x_scale, [trapezoidal(x, 0, 0, 2, 4) for x in x_scale], label="Drained", color="#e0564c")
+        axes[0, 1].plot(x_scale, [triangular(x, 2, 5, 8) for x in x_scale], label="Okay", color="#d97706")
+        axes[0, 1].plot(x_scale, [trapezoidal(x, 6, 8, 10, 10) for x in x_scale], label="Energized", color="#16a34a")
         axes[0, 1].set_title("Energy (0–10)")
         axes[0, 1].set_ylim(-0.05, 1.05)
         axes[0, 1].legend()
         axes[0, 1].grid(True, alpha=0.3)
 
         # Urgency
-        axes[1, 0].plot(x_scale, [trapezoidal(x, 0, 0, 0.5, 1.5) for x in x_scale], label="Imminent")
-        axes[1, 0].plot(x_scale, [triangular(x, 0.5, 3, 7) for x in x_scale], label="Near")
-        axes[1, 0].plot(x_scale, [trapezoidal(x, 5, 10, 30, 30) for x in x_scale], label="Far")
+        axes[1, 0].plot(x_scale, [trapezoidal(x, 0, 0, 0.5, 1.5) for x in x_scale], label="Imminent", color="#e0564c")
+        axes[1, 0].plot(x_scale, [triangular(x, 0.5, 3, 7) for x in x_scale], label="Near", color="#d97706")
+        axes[1, 0].plot(x_scale, [trapezoidal(x, 5, 10, 30, 30) for x in x_scale], label="Far", color="#16a34a")
         axes[1, 0].set_title("Deadline Urgency (Days)")
         axes[1, 0].set_xlim(0, 15)
         axes[1, 0].set_ylim(-0.05, 1.05)
@@ -836,9 +1209,9 @@ elif nav_choice == "🧠 AI Logic / System Analysis":
         axes[1, 0].grid(True, alpha=0.3)
 
         # Difficulty
-        axes[1, 1].plot(x_scale, [trapezoidal(x, 0, 0, 2, 4) for x in x_scale], label="Easy")
-        axes[1, 1].plot(x_scale, [triangular(x, 2, 5, 8) for x in x_scale], label="Medium")
-        axes[1, 1].plot(x_scale, [trapezoidal(x, 6, 8, 10, 10) for x in x_scale], label="Hard")
+        axes[1, 1].plot(x_scale, [trapezoidal(x, 0, 0, 2, 4) for x in x_scale], label="Easy", color="#16a34a")
+        axes[1, 1].plot(x_scale, [triangular(x, 2, 5, 8) for x in x_scale], label="Medium", color="#d97706")
+        axes[1, 1].plot(x_scale, [trapezoidal(x, 6, 8, 10, 10) for x in x_scale], label="Hard", color="#e0564c")
         axes[1, 1].set_title("Difficulty (0–10)")
         axes[1, 1].set_ylim(-0.05, 1.05)
         axes[1, 1].legend()
@@ -848,9 +1221,8 @@ elif nav_choice == "🧠 AI Logic / System Analysis":
         st.pyplot(fig)
         plt.close(fig)
 
-        # Rule Base Explorer
         st.write(f"**Total Rule Base Size:** {len(ADVISOR_RULES)} Mamdani Rules")
-        with st.expander("View 81-Rule Consequent Table"):
+        with st.expander("View Complete 81-Rule Consequent Table"):
             rule_table = [
                 {
                     "Rule #": i + 1,
@@ -870,8 +1242,8 @@ elif nav_choice == "🧠 AI Logic / System Analysis":
     with tab2:
         st.subheader("Task Prioritizer: 3-Input Mamdani System")
         st.write(
-            "Computes task priority scores (0 to 100) using 27 Mamdani rules across "
-            "Urgency, Importance, and Difficulty."
+            "Computes priority scores (0 to 100) using 27 Mamdani rules balancing Urgency, Importance, and Difficulty. "
+            "Constrained so high topic difficulty alone never inappropriately elevates relaxed, low-importance tasks."
         )
         with st.expander("View 27 Task Prioritizer Rules"):
             t_rules = [
@@ -889,22 +1261,23 @@ elif nav_choice == "🧠 AI Logic / System Analysis":
     with tab3:
         st.subheader("Heuristic Search Formalism")
         st.markdown(
-            """
+            r"""
             ### Greedy Best-First Search (GBFS)
-            - **Problem formulation:** Finding a subset and ordering of study tasks and breaks within a finite daily budget \\(B\\).
-            - **State representation:** \\(S = (\\text{scheduled}, \\text{time\\_spent}, \\text{remaining})\\)
-            - **Actions:** Pick an unscheduled task \\(t\\) such that:
-              $$\\text{time\\_spent} + \\text{break\\_duration} + \\text{duration}(t) \\le B$$
-            - **Heuristic evaluation function \\(h(S)\\):**
-              Estimates the cost of uncompleted work:
-              $$h(S) = \\sum_{t \\in \\text{remaining}} \\text{PriorityScore}(t) \\times \\frac{4.0}{\\text{DeadlineDays}(t) + 0.5}$$
-            - **Search Strategy:** Guided by a min-heap priority queue, expanding the state that minimizes \\(h(S)\\).
+            - **Problem formulation:** Finding a subset and ordering of study tasks and breaks within a finite daily budget $B$.
+            - **State representation:** $S = (\text{scheduled}, t_{\text{used}}, \text{remaining})$.
+            - **Actions:** Pick an unscheduled task $t$ such that:
+              $$t_{\text{used}} + t_{\text{break}} + t_{\text{duration}}(t) \le B$$
+            - **Heuristic evaluation function $h(S)$:**
+              Estimates the cost of leaving urgent and critical coursework uncompleted:
+              $$h(S) = \sum_{t \in \text{remaining}} \text{PriorityScore}(t) \times \frac{4.0}{\text{DeadlineDays}(t) + 0.5}$$
+            - **Search Strategy:** Guided by a min-heap priority queue, expanding the state that minimizes $h(S)$.
+            - **Optimality Note:** As with all Greedy Best-First Search methods, GBFS optimizes for speed and urgency reduction rather than global combinatorial optimality.
             """
         )
 
     with tab4:
         st.subheader("Fuzzy Rule Coverage & Heatmaps")
-        st.write("Examines rule firing and centroid defuzzification across sleep and energy.")
+        st.write("Examines rule firing and centroid defuzzification across sleep and energy dimensions.")
 
         heatmap_wl = st.slider("Workload for Heatmap", 0.0, 10.0, 5.0, 0.5)
         hm_data = generate_heatmap_data(fixed_workload=heatmap_wl, step=1.0)
@@ -914,7 +1287,7 @@ elif nav_choice == "🧠 AI Logic / System Analysis":
 
         hcol1, hcol2 = st.columns(2)
         with hcol1:
-            fig_h1, ax_h1 = plt.subplots(figsize=(6, 4))
+            fig_h1, ax_h1 = plt.subplots(figsize=(5.5, 3.8))
             im1 = ax_h1.imshow(
                 hm_data["coverage"],
                 origin="lower",
@@ -922,6 +1295,7 @@ elif nav_choice == "🧠 AI Logic / System Analysis":
                 aspect="auto",
                 vmin=0,
                 vmax=1,
+                cmap="YlOrRd",
             )
             ax_h1.set_xlabel("Sleep (hours)")
             ax_h1.set_ylabel("Energy (0-10)")
@@ -931,7 +1305,7 @@ elif nav_choice == "🧠 AI Logic / System Analysis":
             plt.close(fig_h1)
 
         with hcol2:
-            fig_h2, ax_h2 = plt.subplots(figsize=(6, 4))
+            fig_h2, ax_h2 = plt.subplots(figsize=(5.5, 3.8))
             im2 = ax_h2.imshow(
                 hm_data["durations"],
                 origin="lower",
@@ -939,10 +1313,11 @@ elif nav_choice == "🧠 AI Logic / System Analysis":
                 aspect="auto",
                 vmin=15,
                 vmax=90,
+                cmap="Blues",
             )
             ax_h2.set_xlabel("Sleep (hours)")
             ax_h2.set_ylabel("Energy (0-10)")
-            ax_h2.set_title("Recommended Study Duration (min)")
+            ax_h2.set_title("Study Duration (min)")
             fig_h2.colorbar(im2, ax=ax_h2)
             st.pyplot(fig_h2)
             plt.close(fig_h2)

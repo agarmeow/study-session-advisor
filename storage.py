@@ -88,6 +88,7 @@ def apply_adaptation_and_preferences(
     intensity: str,
     preferences: Dict[str, Any],
     adaptation_offset: int,
+    last_feedback: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Apply rule-based adjustments from user focus style preferences and session feedback.
     
@@ -95,7 +96,7 @@ def apply_adaptation_and_preferences(
     - Base fuzzy inference is preserved and reported.
     - Preference and feedback adjustments are bounded (15 to 90 min).
     - Conservative: if intensity is "Light revision", long session preference is softened.
-    - Transparently explains why any adjustment was made.
+    - Transparently distinguishes accumulated feedback offset from recent feedback.
     """
     adjusted_study = base_study_minutes
     adjusted_break = base_break_minutes
@@ -105,10 +106,16 @@ def apply_adaptation_and_preferences(
     bounded_offset = max(-15, min(15, int(adaptation_offset)))
     if bounded_offset != 0:
         adjusted_study += bounded_offset
+        direction_sign = f"+{bounded_offset}" if bounded_offset > 0 else f"{bounded_offset}"
+        recent_desc = f", most recent feedback: '{last_feedback}'" if last_feedback else ""
         if bounded_offset > 0:
-            reasons.append(f"added {bounded_offset} min from your past session feedback ('Too short')")
+            reasons.append(
+                f"added {bounded_offset} min cumulative adjustment from past session feedback{recent_desc}"
+            )
         else:
-            reasons.append(f"reduced by {abs(bounded_offset)} min from your past feedback ('Too long')")
+            reasons.append(
+                f"reduced by {abs(bounded_offset)} min cumulative adjustment from past feedback{recent_desc}"
+            )
 
     # 2. Apply focus style preference
     focus_style = preferences.get("focus_style", "Balanced")
@@ -124,7 +131,7 @@ def apply_adaptation_and_preferences(
             adjusted_study = min(75, adjusted_study + 10)
             reasons.append("slightly extended for your 'Longer sessions' preference")
         elif intensity == "Light revision":
-            reasons.append("kept session gentle because your current state requires light revision")
+            reasons.append("kept session gentle because your current state requires light revision (longer sessions deferred)")
 
     # Final clamping to safe bounds [15, 90]
     final_study = max(15, min(90, round(adjusted_study)))
@@ -142,6 +149,127 @@ def apply_adaptation_and_preferences(
         "final_break_minutes": final_break,
         "adaptation_offset": bounded_offset,
         "adjustment_explanation": explanation,
+        "focus_style": focus_style,
+    }
+
+
+def generate_recommendation_explanation(
+    sleep_hours: float,
+    energy_input: str,
+    deadline_input: str,
+    difficulty_input: str,
+    final_study_minutes: int,
+    final_break_minutes: int,
+    intensity: str,
+    rest_needed: str,
+    base_study_minutes: int,
+    adaptation_offset: int = 0,
+    last_feedback: Optional[str] = None,
+    focus_style: str = "Balanced",
+) -> Dict[str, Any]:
+    """Generate precise, input-grounded explanations matching actual computed outputs.
+    
+    Guarantees:
+    - Never describes stamina as balanced when rest_needed is High.
+    - Explicitly addresses imminent deadlines and topic difficulty.
+    - Distinguishes cumulative feedback adjustment from recent feedback entry.
+    - Explains focus preference only when actually relevant to the outcome.
+    """
+    clean_energy = energy_input.split()[0].lower() if " " in energy_input else energy_input.lower()
+    clean_diff = difficulty_input.split()[0] if " " in difficulty_input else difficulty_input
+
+    # 1. Actionable Guidance
+    guidance = (
+        f"Start with a {final_study_minutes}-minute {intensity.lower()} session, "
+        f"followed by a {final_break_minutes}-minute rest break."
+    )
+
+    # 2. Stamina & Rest Assessment
+    if rest_needed == "High":
+        stamina_note = (
+            f"Your rest-needed indicator is **High** because you recorded {sleep_hours:.1f} hours of sleep "
+            f"and feel {clean_energy}. Pacing yourself with a gentle session and a generous break "
+            "prevents cognitive burnout and error fatigue."
+        )
+    elif rest_needed == "Medium":
+        stamina_note = (
+            f"Your stamina indicator is **Medium** with {sleep_hours:.1f} hours of sleep and {clean_energy} energy. "
+            "Structured intervals with scheduled rest will maintain steady, sustainable focus."
+        )
+    else:
+        stamina_note = (
+            f"Your rest-needed indicator is **Low** ({sleep_hours:.1f} hours of sleep, {clean_energy} energy). "
+            "Your alertness and stamina are strong, making this an optimal window for high-retention study."
+        )
+
+    # 3. Urgency & Difficulty Context
+    context_points = []
+    is_imminent = "Today" in deadline_input or "Imminent" in deadline_input or "< 24" in deadline_input
+    is_near = "2–3" in deadline_input or "Near" in deadline_input
+
+    if is_imminent:
+        if intensity == "Light revision":
+            context_points.append(
+                "**Imminent Deadline:** Although your deadline is today, tackling complex new problems while fatigued "
+                "leads to frustration and high error rates. Focus on high-yield revision and reinforcing core definitions."
+            )
+        elif intensity == "Challenging material":
+            context_points.append(
+                "**Imminent Deadline:** With high alertness and a deadline today, prioritize your most critical problem sets "
+                "and deliverables during this deep-focus block."
+            )
+        else:
+            context_points.append(
+                "**Imminent Deadline:** Prioritize direct progress on key coursework deliverables during this block."
+            )
+    elif is_near:
+        context_points.append(
+            "**Approaching Deadline (2–3 Days):** Working through structured intervals now builds confidence without last-minute panic."
+        )
+    else:
+        context_points.append(
+            "**Upcoming Deadline:** You have ample runway to explore topics methodically without urgency pressure."
+        )
+
+    if "Hard" in difficulty_input:
+        if intensity == "Light revision":
+            context_points.append(
+                f"**{clean_diff} Topic:** Deconstruct difficult topics into bite-sized concepts rather than attempting a grueling marathon."
+            )
+        else:
+            context_points.append(
+                f"**{clean_diff} Topic:** Demanding material benefits from dedicated active recall and problem solving in this block."
+            )
+    elif "Easy" in difficulty_input:
+        context_points.append(
+            f"**{clean_diff} Topic:** Material is manageable—use this session for quick practice, flashcards, or summarizing."
+        )
+
+    # 4. Adaptation & Transparency Notes
+    transparency_notes = []
+    if base_study_minutes != final_study_minutes:
+        transparency_notes.append(f"Base fuzzy inference recommendation: {base_study_minutes} min.")
+        if adaptation_offset != 0:
+            direction = f"+{adaptation_offset}" if adaptation_offset > 0 else f"{adaptation_offset}"
+            recent_str = f" (most recent response: '{last_feedback}')" if last_feedback else ""
+            transparency_notes.append(
+                f"Cumulative feedback adjustment: {direction} min across past study sessions{recent_str}."
+            )
+        if focus_style == "Short bursts" and final_study_minutes < base_study_minutes:
+            transparency_notes.append("Applied 'Short bursts' preference to cap session length.")
+        elif focus_style == "Longer sessions" and final_study_minutes > base_study_minutes:
+            transparency_notes.append("Applied 'Longer sessions' preference (+10 min).")
+        elif focus_style == "Longer sessions" and intensity == "Light revision":
+            transparency_notes.append("Kept session gentle despite 'Longer sessions' preference due to light revision requirement.")
+    else:
+        transparency_notes.append("Duration matches pure fuzzy Mamdani inference without preference or feedback offsets.")
+
+    return {
+        "guidance": guidance,
+        "stamina_note": stamina_note,
+        "context_notes": context_points,
+        "transparency_notes": transparency_notes,
+        "disclaimer": "Recommendations are rule-based planning guidelines designed for student productivity, not medical or cognitive assessments.",
     }
 
 
@@ -167,6 +295,9 @@ def record_session(
     data["sessions"].append(session_entry)
 
     # Update feedback adaptation if provided
+    if feedback in {"Too short", "Too long", "Just right"}:
+        data["last_feedback"] = feedback
+
     if feedback == "Too short":
         # Increment by 5 minutes up to max +15
         data["adaptation_offset"] = min(15, data.get("adaptation_offset", 0) + 5)
