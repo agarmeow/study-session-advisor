@@ -7,6 +7,8 @@ from fuzzy_engine import (
     triangular_membership,
     trapezoidal_membership,
 )
+from analysis_tools import generate_heatmap_data
+
 
 # ---------------- PAGE CONFIGURATION ----------------
 
@@ -23,6 +25,7 @@ st.write(
 )
 
 st.divider()
+
 
 # ---------------- SIDEBAR INPUTS ----------------
 
@@ -56,6 +59,7 @@ st.sidebar.caption(
     "Adjust the sliders and click the button to get your recommendation."
 )
 
+
 # ---------------- RECOMMENDATION ----------------
 
 if st.button("Get Study Recommendation", type="primary"):
@@ -65,6 +69,7 @@ if st.button("Get Study Recommendation", type="primary"):
         energy=energy,
     )
     st.session_state["last_inputs"] = (sleep, workload, energy)
+
 
 if "result" in st.session_state:
     result = st.session_state["result"]
@@ -95,7 +100,7 @@ if "result" in st.session_state:
         "This is a rule-based estimate, not a medical or scientific assessment."
     )
 
-    # -------- FIRED RULES --------
+    # -------- ACTIVATED RULES --------
 
     st.subheader("Why this recommendation?")
 
@@ -127,11 +132,13 @@ if "result" in st.session_state:
         alpha=0.3,
         label="Aggregated fuzzy output",
     )
+
     ax.plot(
         durations,
         memberships,
         label="Membership degree",
     )
+
     ax.axvline(
         duration,
         linestyle="--",
@@ -155,14 +162,26 @@ else:
         "then click **Get Study Recommendation**."
     )
 
+
 # ---------------- TABS ----------------
 
-tab1, tab2, tab3 = st.tabs(
-    ["Membership Functions", "Rule Base", "Test Scenarios"]
+tab1, tab2, tab3, tab4 = st.tabs(
+    [
+        "Membership Functions",
+        "Rule Base",
+        "Test Scenarios",
+        "Coverage Analysis",
+    ]
 )
+
+
+# ==================================================
+# TAB 1: MEMBERSHIP FUNCTIONS
+# ==================================================
 
 with tab1:
     st.subheader("Input Membership Functions")
+
     st.write(
         "Fuzzy membership values range from 0 to 1. "
         "An input can belong partially to overlapping categories."
@@ -235,33 +254,45 @@ with tab1:
     st.pyplot(fig)
     plt.close(fig)
 
+
+# ==================================================
+# TAB 2: RULE BASE
+# ==================================================
+
 with tab2:
-    st.subheader("Fuzzy Rule Base")
+    st.subheader("Complete Fuzzy Rule Base")
 
-    rules = [
-        ("Low sleep AND tired energy", "Short"),
-        ("Low sleep AND okay energy", "Short"),
-        ("Low sleep AND fresh energy", "Medium"),
-        ("Medium sleep AND tired energy", "Short"),
-        ("Medium sleep AND okay energy", "Medium"),
-        ("Medium sleep AND fresh energy", "Long"),
-        ("High sleep AND tired energy", "Medium"),
-        ("High sleep AND okay energy", "Long"),
-        ("High sleep AND fresh energy", "Long"),
-        ("Heavy workload AND fresh energy", "Long"),
-        ("Heavy workload AND tired energy", "Medium"),
-        ("Light workload AND tired energy", "Short"),
-        ("Moderate workload AND medium sleep", "Medium"),
-    ]
+    from fuzzy_engine import RULE_BASE, RULE_WEIGHTS
 
-    st.write("The system uses 13 hand-crafted Mamdani-style rules.")
+    rule_rows = []
 
-    st.table(
-        {
-            "Rule condition": [r[0] for r in rules],
-            "Recommended category": [r[1] for r in rules],
-        }
+    for index, rule in enumerate(RULE_BASE, start=1):
+        sleep_category, workload_category, energy_category, output = rule
+
+        rule_rows.append({
+            "Rule": index,
+            "Sleep": sleep_category.capitalize(),
+            "Workload": workload_category.capitalize(),
+            "Energy": energy_category.capitalize(),
+            "Output": output.capitalize(),
+            "Weight": RULE_WEIGHTS[index],
+        })
+
+    st.write(
+        f"The system uses {len(RULE_BASE)} Mamdani-style rules. "
+        "Each rule currently has a weight of 1.0."
     )
+
+    st.dataframe(
+        rule_rows,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+# ==================================================
+# TAB 3: TEST SCENARIOS
+# ==================================================
 
 with tab3:
     st.subheader("Example Test Scenarios")
@@ -283,20 +314,153 @@ with tab3:
             test_energy,
         )
 
-        rows.append(
-            {
-                "Scenario": name,
-                "Sleep (hours)": test_sleep,
-                "Workload": test_workload,
-                "Energy": test_energy,
-                "Study duration (min)": test_result["duration"],
-            }
-        )
+        rows.append({
+            "Scenario": name,
+            "Sleep (hours)": test_sleep,
+            "Workload": test_workload,
+            "Energy": test_energy,
+            "Study duration (min)": test_result["duration"],
+        })
 
-    st.table(rows)
-
-    st.caption(
-        "These are illustrative test cases, not experimentally validated "
-        "study recommendations."
+    st.dataframe(
+        rows,
+        use_container_width=True,
+        hide_index=True,
     )
 
+    st.caption(
+        "These are illustrative test cases, not experimentally "
+        "validated study recommendations."
+    )
+
+
+# ==================================================
+# TAB 4: COVERAGE ANALYSIS
+# ==================================================
+
+with tab4:
+    st.subheader("Fuzzy Rule Coverage Analysis")
+
+    st.write(
+        "Explore rule activation and study-duration recommendations "
+        "across different combinations of sleep and energy."
+    )
+
+    fixed_workload = st.slider(
+        "Workload for analysis",
+        min_value=0.0,
+        max_value=10.0,
+        value=5.0,
+        step=0.5,
+        key="coverage_workload",
+    )
+
+    heatmap_data = generate_heatmap_data(
+        fixed_workload=fixed_workload,
+        step=0.5,
+    )
+
+    sleep_values = heatmap_data["sleep_values"]
+    energy_values = heatmap_data["energy_values"]
+    coverage = heatmap_data["coverage"]
+    durations = heatmap_data["durations"]
+
+    col1, col2 = st.columns(2)
+
+    # -------- COVERAGE HEATMAP --------
+
+    with col1:
+        st.markdown("**Maximum Rule Firing Strength**")
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        image = ax.imshow(
+            coverage,
+            origin="lower",
+            aspect="auto",
+            extent=[
+                sleep_values[0],
+                sleep_values[-1],
+                energy_values[0],
+                energy_values[-1],
+            ],
+            vmin=0,
+            vmax=1,
+        )
+
+        ax.set_xlabel("Sleep (hours)")
+        ax.set_ylabel("Energy (0–10)")
+        ax.set_title("Rule Coverage Heatmap")
+
+        fig.colorbar(
+            image,
+            ax=ax,
+            label="Maximum firing strength",
+        )
+
+        fig.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # -------- RECOMMENDATION HEATMAP --------
+
+    with col2:
+        st.markdown("**Recommended Study Duration**")
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        image = ax.imshow(
+            durations,
+            origin="lower",
+            aspect="auto",
+            extent=[
+                sleep_values[0],
+                sleep_values[-1],
+                energy_values[0],
+                energy_values[-1],
+            ],
+            vmin=15,
+            vmax=90,
+        )
+
+        ax.set_xlabel("Sleep (hours)")
+        ax.set_ylabel("Energy (0–10)")
+        ax.set_title("Study Duration Heatmap")
+
+        fig.colorbar(
+            image,
+            ax=ax,
+            label="Recommended minutes",
+        )
+
+        fig.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # -------- COVERAGE SUMMARY --------
+
+    minimum_coverage = min(
+        min(row) for row in coverage
+    )
+
+    st.metric(
+        "Minimum sampled rule firing strength",
+        f"{minimum_coverage:.3f}",
+    )
+
+    if minimum_coverage > 0:
+        st.success(
+            "All sampled sleep-energy combinations activated "
+            "at least one rule for this workload."
+        )
+    else:
+        st.error(
+            "Some sampled combinations have zero rule coverage. "
+            "Review the membership functions and rule base."
+        )
+
+    st.caption(
+        "Coverage is evaluated on a sampled grid at 0.5-unit "
+        "intervals. This does not prove coverage for every "
+        "possible real-valued input."
+    )
