@@ -131,8 +131,12 @@ def build_rule_base():
         pause = 5 + 3 * (2 - e) + 2 * (2 - s)
         pause = max(5, min(15, pause))
 
-        # Intensity is limited when energy is low.
+        # Intensity is limited when energy is low or sleep is low.
         intensity = 2 + 2 * e + s + d
+        if e == 0:
+            intensity = min(intensity, 3)
+        if s == 0:
+            intensity = min(intensity, 5)
         intensity = max(1, min(9, intensity))
 
         # Rest-needed score is a gentle planning indicator.
